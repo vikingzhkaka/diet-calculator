@@ -286,6 +286,11 @@
     <ul class="tips" id="tips"></ul>
   </div>
 
+  <div class="card" style="text-align:center;padding:18px">
+    <button class="dsave" style="font-size:15px;padding:12px 30px" onclick="saveToday()">💾 保存今日</button>
+    <span class="dsave-state" id="dsaveState2"></span>
+  </div>
+
   <div class="foot">本工具为营养参考，非医疗建议 · 数据基于《硬派健身》力量训练者营养框架</div>
 </div>
 
@@ -536,15 +541,13 @@ function recordDay(){
   };
   diet_log[selDate]=e;
   try{localStorage.setItem('diet_log',JSON.stringify(diet_log));}catch(err){}
-  const st=document.getElementById('dsaveState');
-  if(st) st.textContent='已保存 '+timeStr();
+  document.querySelectorAll('.dsave-state').forEach(s=>s.textContent='已保存 '+timeStr());
   renderDateStrip(); renderTrend(); scheduleSync();
 }
 function saveToday(){
-  recordDay();                       // 写入本地 + 显示「已保存 HH:MM」
+  recordDay();                       // 写入本地 + 显示「已保存 HH:MM」（同步更新顶部+底部）
   if(cloud.token){ pushToCloud();   // 配了云端则立即同步，不等 1.2s 防抖
-    const st=document.getElementById('dsaveState');
-    if(st) st.textContent='已保存 '+timeStr()+' · 云端同步中…';
+    document.querySelectorAll('.dsave-state').forEach(s=>s.textContent='已保存 '+timeStr()+' · 云端同步中…');
   }
 }
 function scheduleSync(){
