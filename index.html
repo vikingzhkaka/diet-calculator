@@ -203,7 +203,7 @@
       <div class="field" style="margin-bottom:10px"><label>Personal Access Token（需 repo 权限，仅存本机浏览器）</label>
         <input id="cloudToken" type="password" placeholder="ghp_..." style="width:100%"></div>
       <div class="field" style="margin-bottom:10px"><label>仓库（owner/repo）</label>
-        <input id="cloudRepo" type="text" value="vikingzhkaka/diet-log" style="width:100%"></div>
+        <input id="cloudRepo" type="text" placeholder="owner/repo" style="width:100%"></div>
       <div class="preset">
         <button onclick="saveCloud()">保存并测试</button>
         <button onclick="pushToCloud();renderCloudStatus('手动同步中…')">立即同步</button>
@@ -744,7 +744,7 @@ if(Object.keys(diet_log).length===0){
 }
 if(cloud.token){
   document.getElementById('cloudToken').value=cloud.token;
-  document.getElementById('cloudRepo').value=cloud.repo||'vikingzhkaka/diet-log';
+  document.getElementById('cloudRepo').value=cloud.repo||'';
 }
 renderCloudStatus(cloud.token?'已配置':'未配置');
 selDate=todayStr(); navEnd=selDate;
