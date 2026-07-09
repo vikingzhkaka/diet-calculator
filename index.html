@@ -561,14 +561,30 @@ async function pushToCloud(){
   const url='https://api.github.com/repos/'+parts[0]+'/'+parts[1]+'/contents/diet-log.json';
   const body=JSON.stringify(diet_log);
   let sha=null;
-  try{const r=await fetch(url,{headers:{Authorization:'Bearer '+cloud.token,Accept:'application/vnd.github+json'}});
-    if(r.status===200){const j=await r.json(); sha=j.sha;}}catch(e){}
+  // Step 1: GET current file SHA
   try{
+    const r=await fetch(url,{headers:{Authorization:'Bearer '+cloud.token,Accept:'application/vnd.github+json'}});
+    console.log('[cloud] GET status:', r.status);
+    if(r.status===200){const j=await r.json(); sha=j.sha; console.log('[cloud] SHA obtained:', !!sha);}
+    else { console.log('[cloud] GET non-200:', r.status, await r.text()); }
+  }catch(e){console.error('[cloud] GET error:', e);}
+  // Step 2: PUT update
+  try{
+    const putBody={message:'update diet log '+new Date().toISOString(),content:btoa(unescape(encodeURIComponent(body)))};
+    if(sha) putBody.sha=sha; else console.warn('[cloud] PUT without SHA — file may not exist yet');
     const r=await fetch(url,{method:'PUT',
       headers:{Authorization:'Bearer '+cloud.token,Accept:'application/vnd.github+json','Content-Type':'application/json'},
-      body:JSON.stringify({message:'update diet log '+new Date().toISOString(),content:btoa(unescape(encodeURIComponent(body))),sha:sha||undefined})});
+      body:JSON.stringify(putBody)});
+    console.log('[cloud] PUT status:', r.status);
     if(r.ok){lastSync=Date.now(); renderCloudStatus('已同步 '+timeStr());}
-    else{const t=await r.text(); renderCloudStatus('同步失败 '+r.status); console.error('push fail',t);}
+    else{
+      const t=await r.text();
+      console.error('[cloud] PUT fail body:', t);
+      // 解析 GitHub API 错误消息
+      let detail='同步失败 '+r.status;
+      try{const ej=JSON.parse(t); if(ej.message) detail+=': '+ej.message;}catch(xe){}
+      renderCloudStatus(detail);
+    }
   }catch(e){renderCloudStatus('同步失败(网络)');}
 }
 async function pullFromCloud(){
