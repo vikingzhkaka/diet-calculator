@@ -12,18 +12,22 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-    background:var(--bg);color:var(--ink);line-height:1.6;padding:24px 16px 60px}
+    background:var(--bg);color:var(--ink);line-height:1.6;padding:24px 16px 60px;font-variant-numeric:tabular-nums}
   .wrap{max-width:880px;margin:0 auto}
-  h1{font-size:22px;font-weight:700;margin-bottom:4px}
+  h1{font-size:22px;font-weight:700;margin-bottom:4px;text-align:center}
   .lead{color:var(--sub);font-size:13px;margin-bottom:20px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:18px 18px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
   .card h2{font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
   .card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
-  .collapsible .cbody{overflow:hidden}
+  .collapsible .cbody{overflow:hidden;margin-top:14px}
   .collapsible.collapsed .cbody{display:none}
-  .chead{cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}
-  .chead:hover{color:var(--accent)}
+  .card .chead{margin-bottom:0;padding:5px 6px;margin-left:-6px;margin-right:-6px;border-radius:10px;
+    cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:background .15s}
+  .card .chead:hover{color:var(--accent);background:#f1f5f9}
+  .card .chead:active{background:#e2e8f0}
+  .cval{margin-left:8px;font-size:12px;font-weight:600;color:var(--accent);
+    background:#eef2ff;border-radius:999px;padding:2px 10px;white-space:nowrap}
   .chev{margin-left:auto;font-size:12px;color:var(--sub);transition:transform .2s;display:inline-block;line-height:1}
   .collapsed .chev{transform:rotate(-90deg)}
 
@@ -95,6 +99,8 @@
     .food select{font-size:14px;padding:7px 8px;min-height:40px}
     .tbox .v{font-size:20px}
     .lead{font-size:12px}
+    .cval{font-size:11px;padding:2px 8px}
+    .card .chead{padding:6px 6px}
   }
   @media(max-width:380px){
     h1{font-size:20px}
@@ -106,7 +112,7 @@
   <h1>每日饮食计算器</h1>
 
   <div class="card collapsible collapsed" id="cardPreset">
-    <h2 class="chead" role="button" tabindex="0" onclick="toggleCard('cardPreset')"><span class="dot"></span>场景预设 <span class="chev">▾</span></h2>
+    <h2 class="chead" role="button" tabindex="0" onclick="toggleCard('cardPreset')"><span class="dot"></span>场景预设 <span class="cval" id="presetVal"></span><span class="chev">▾</span></h2>
     <div class="cbody">
     <div class="preset" id="presetBar"></div>
     <div class="pnote" id="pnote"></div>
@@ -114,7 +120,7 @@
   </div>
 
   <div class="card collapsible collapsed" id="cardParams">
-    <h2 class="chead" role="button" tabindex="0" onclick="toggleCard('cardParams')"><span class="dot"></span>个人参数 <span class="chev">▾</span></h2>
+    <h2 class="chead" role="button" tabindex="0" onclick="toggleCard('cardParams')"><span class="dot"></span>个人参数 <span class="cval" id="paramsVal"></span><span class="chev">▾</span></h2>
     <div class="cbody">
     <div class="grid">
       <div class="field"><label>身高 (cm)</label><input id="height" type="number" value="178"></div>
@@ -341,6 +347,8 @@ function render(){
   const age=+document.getElementById('age').value||36;
   const ppk=+document.getElementById('prot').value;
   document.getElementById('protval').textContent=ppk.toFixed(1);
+  document.getElementById('presetVal').textContent=PRESETS[PRESET].label;
+  document.getElementById('paramsVal').textContent=(DAY==='train'?'🔵 训练日':'⚪ 非训练日')+' · '+w+'kg · '+ppk.toFixed(1)+'g/kg';
 
   const tP=Math.round(w*ppk);
   const tC=Math.round(w*(DAY==='train'?4.5:2.8));
