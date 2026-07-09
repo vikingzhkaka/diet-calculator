@@ -84,6 +84,24 @@
   .tips li{margin-bottom:6px;list-style:none;padding-left:16px;position:relative}
   .tips li:before{content:"›";position:absolute;left:2px;color:var(--accent);font-weight:700}
   .foot{font-size:11px;color:#9ca3af;text-align:center;margin-top:24px}
+
+  .sub{font-size:12px;color:var(--sub);font-weight:600;margin:2px 0 8px}
+  .supp-row{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px dashed var(--line)}
+  .supp-row:last-child{border-bottom:none}
+  .supp-row .sname{font-weight:600;font-size:14px;min-width:78px}
+  .supp-row .snote{font-size:11px;color:var(--sub);flex:1;line-height:1.4}
+  .stepper{display:flex;align-items:center;gap:6px}
+  .stepper button{width:28px;height:28px;border:1px solid var(--line);background:#fff;border-radius:8px;
+    font-size:16px;line-height:1;cursor:pointer;color:var(--accent);font-weight:700}
+  .stepper button:active{background:#eef2ff}
+  .stepper .sq{min-width:36px;text-align:center;font-weight:700;font-size:14px}
+  .mchip{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border:1px solid var(--line);
+    border-radius:999px;font-size:13px;cursor:pointer;margin:4px 8px 4px 0;background:#fff;transition:.15s;user-select:none}
+  .mchip.on{background:#eef2ff;border-color:var(--accent);color:var(--accent);font-weight:600}
+  .mchip .amt{font-size:11px;color:var(--sub)}
+  .mchip.on .amt{color:var(--accent)}
+  .mchip .when{font-size:10px;background:#f1f5f9;border-radius:6px;padding:1px 6px;color:var(--sub);font-weight:400}
+  .delta.supp{color:var(--sub);font-weight:400;margin-top:4px}
   @media(max-width:620px){
     body{padding:16px 12px 48px}
     .grid{grid-template-columns:1fr 1fr}
@@ -101,6 +119,9 @@
     .lead{font-size:12px}
     .cval{font-size:11px;padding:2px 8px}
     .card .chead{padding:6px 6px}
+    .supp-row{flex-wrap:wrap}
+    .supp-row .snote{order:3;flex-basis:100%}
+    .stepper{margin-left:auto}
   }
   @media(max-width:380px){
     h1{font-size:20px}
@@ -154,6 +175,16 @@
     <div id="meals"></div>
   </div>
 
+  <div class="card collapsible" id="cardSupp">
+    <h2 class="chead" role="button" tabindex="0" onclick="toggleCard('cardSupp')"><span class="dot"></span>💊 补剂记录 <span class="cval" id="suppVal"></span><span class="chev">▾</span></h2>
+    <div class="cbody">
+      <div class="sub">宏量补剂 · 计入每日蛋白 / 碳水</div>
+      <div id="suppMacro"></div>
+      <div class="sub" style="margin-top:14px">非宏量补剂 · 勾选已服（不计入宏量）</div>
+      <div id="suppMicro"></div>
+    </div>
+  </div>
+
   <div class="card">
     <h2><span class="dot"></span>实际摄入 vs 目标</h2>
     <div class="bar" id="bar"></div>
@@ -163,6 +194,7 @@
       <span>脂肪 <b id="lF">—</b></span>
     </div>
     <div class="delta" id="delta"></div>
+    <div class="delta supp" id="suppNote"></div>
   </div>
 
   <div class="card">
@@ -230,10 +262,28 @@ const FOODS = {
   cucumber:  {name:'黄瓜',    p:0.007,c:0.02, f:0.001,unit:'g', role:'veg',  swap:'veg'},
   // 脂肪/坚果（swap:fat，单位g）
   nuts:      {name:'坚果',    p:0.2,  c:0.2,  f:0.6,  unit:'g', role:'fat',  swap:'fat'},
-  // 补剂
-  whey:      {name:'乳清蛋白粉',p:24,  c:3,    f:1,    unit:'勺', role:'prot', swap:'supp'},
-  honey:     {name:'蜂蜜',    p:0,    c:17,   f:0,    unit:'×20g',role:'carb',swap:'supp'},
+  // 补剂（乳清保留在库以兼容；宏量补剂统一在「补剂记录」卡片用 MACRO_SUPP 管理）
+  whey:      {name:'乳清蛋白粉',p:24,  c:3,    f:1,    unit:'勺', role:'prot', swap:'shake'},
+  honey:     {name:'蜂蜜',    p:0,    c:17,   f:0,    unit:'×20g',role:'carb',swap:'sweet'},
 };
+
+// ---------- 补剂（独立于三餐，统一在「补剂记录」卡片管理） ----------
+const MACRO_SUPP = {
+  whey:   {name:'乳清蛋白粉', p:24, c:3,  f:1,   unit:'勺', step:0.5, note:'练后30分钟内吸收快'},
+  mass:   {name:'增肌粉',     p:25, c:50, f:2,   unit:'勺', step:0.5, note:'碳水高，练后/加餐'},
+  casein: {name:'酪蛋白',     p:24, c:1,  f:0.5, unit:'勺', step:0.5, note:'睡前慢释，整夜供能'},
+  bar:    {name:'蛋白棒',     p:20, c:25, f:6,   unit:'根', step:1,   note:'代餐/外出便携'},
+};
+const MICRO_SUPP = {
+  creatine:{name:'肌酸',   amt:'5g',    when:'训练日', note:'提升力量与恢复'},
+  fishoil: {name:'鱼油',   amt:'2g',    when:'每日',   note:'补Omega-3'},
+  caffeine:{name:'咖啡因', amt:'200mg', when:'训前',   note:'提升训练专注'},
+  multi:   {name:'复合维矿',amt:'1粒',   when:'每日',   note:'基础微量营养'},
+  electro: {name:'电解质',  amt:'1包',   when:'训练日', note:'防抽筋/脱水'},
+  mag:     {name:'镁',     amt:'200mg', when:'睡前',   note:'助眠/放松'},
+};
+let macroQty = {whey:1, mass:0, bar:0, casein:0};
+let microOn  = {};
 
 // ---------- 预设（每个含 train / rest 两套模板，items 为 [食物key, 基础份量]） ----------
 const PRESETS = {
@@ -244,7 +294,7 @@ const PRESETS = {
       {name:'早餐',time:'7:30',items:[['egg',2],['oats',80],['milkFull',1]]},
       {name:'午餐',time:'12:00',items:[['beef',150],['mantou',200],['broccoli',200]]},
       {name:'训前加餐',time:'16:00',items:[['banana',1],['wbread',2]]},
-      {name:'练后即刻',time:'训练结束',items:[['whey',1],['honey',3]]},
+      {name:'练后即刻',time:'训练结束',items:[['honey',3]]},
       {name:'晚餐',time:'19:30',items:[['rice',350],['chickenleg',150],['broccoli',200]]},
       {name:'睡前',time:'22:00',items:[['milkSkim',1],['nuts',15]]},
     ],
@@ -253,7 +303,7 @@ const PRESETS = {
       {name:'午餐',time:'12:00',items:[['beef',150],['brownRice',200],['broccoli',200]]},
       {name:'下午加餐',time:'15:30',items:[['apple',1],['nuts',15]]},
       {name:'晚餐',time:'19:00',items:[['sweetPot',250],['chickenleg',120],['broccoli',200]]},
-      {name:'睡前',time:'22:00',items:[['milkSkim',1],['whey',0.5],['nuts',15]]},
+      {name:'睡前',time:'22:00',items:[['milkSkim',1],['nuts',15]]},
     ],
     tips:{
       train:['午餐蛋白质可换：瘦猪肉/牛腩(肌酸更高)/鸡腿肉/羊肉','主食可换米饭/杂粮饭/意面/藜麦',
@@ -270,7 +320,7 @@ const PRESETS = {
       {name:'🏨 酒店早餐',time:'7:30',items:[['egg',2],['oats',60],['milkFull',1]]},
       {name:'🥡 外卖午餐',time:'12:00',items:[['chickenleg',200],['rice',180],['broccoli',200]]},
       {name:'🏪 便利店加餐',time:'16:00',items:[['banana',1],['wbread',2]]},
-      {name:'💪 练后即刻·自带',time:'训练结束',items:[['whey',1],['honey',3]]},
+      {name:'💪 练后即刻·自带',time:'训练结束',items:[['honey',3]]},
       {name:'🍲 餐厅晚餐',time:'19:30',items:[['bass',300],['rice',200],['broccoli',200]]},
       {name:'🌙 睡前',time:'22:00',items:[['milkSkim',1],['nuts',15]]},
     ],
@@ -279,7 +329,7 @@ const PRESETS = {
       {name:'🥡 外卖午餐',time:'12:00',items:[['chickenleg',200],['brownRice',180],['broccoli',200]]},
       {name:'🏪 便利店加餐',time:'15:30',items:[['apple',1],['nuts',15]]},
       {name:'🍲 餐厅晚餐',time:'19:00',items:[['bass',250],['sweetPot',250],['broccoli',200]]},
-      {name:'🌙 睡前',time:'22:00',items:[['milkSkim',1],['whey',0.5],['nuts',15]]},
+      {name:'🌙 睡前',time:'22:00',items:[['milkSkim',1],['nuts',15]]},
     ],
     tips:{
       train:['外卖午餐：老乡鸡/沙县「白切鸡(去皮)」+米饭减半；或麦当劳板烧鸡腿堡(去酱)+玉米杯，别配薯条',
@@ -298,7 +348,7 @@ const PRESETS = {
     note:'上午训练，训前碳水加量；请用「训练日」模式。消耗最大，糖原恢复需24h+。',
     train:[
       {name:'训前早餐',time:'7:00',items:[['egg',2],['oats',100],['milkFull',1],['banana',1]]},
-      {name:'练后即刻',time:'10:30',items:[['whey',1],['honey',4]]},
+      {name:'练后即刻',time:'10:30',items:[['honey',4]]},
       {name:'练后午餐',time:'11:30',items:[['beef',150],['mantou',250],['broccoli',200]]},
       {name:'下午加餐',time:'15:00',items:[['apple',1],['nuts',15]]},
       {name:'晚餐',time:'18:30',items:[['rice',250],['chicken',150],['broccoli',200]]},
@@ -309,7 +359,7 @@ const PRESETS = {
       {name:'午餐',time:'12:00',items:[['beef',150],['brownRice',200],['broccoli',200]]},
       {name:'下午加餐',time:'15:30',items:[['apple',1],['nuts',15]]},
       {name:'晚餐',time:'19:00',items:[['sweetPot',250],['chicken',120],['broccoli',200]]},
-      {name:'睡前',time:'22:00',items:[['milkSkim',1],['whey',0.5],['nuts',15]]},
+      {name:'睡前',time:'22:00',items:[['milkSkim',1],['nuts',15]]},
     ],
     tips:{
       train:['训前碳水加量：燕麦100g + 香蕉1根，上午训练唯一训前餐','练后蜂蜜提到80g(4×20g)，腿训糖原消耗最大',
@@ -332,6 +382,25 @@ function setPreset(p){PRESET=p;
   render();}
 function swap(id,key){swaps[id]=key;render();}
 function toggleCard(id){const el=document.getElementById(id);if(el)el.classList.toggle('collapsed');}
+function renderSupp(){
+  const mEl=document.getElementById('suppMacro');
+  mEl.innerHTML=Object.entries(MACRO_SUPP).map(([k,s])=>{
+    const q=macroQty[k]||0;
+    const qtxt=(s.step===1)?Math.round(q):(q%1===0?q:q.toFixed(1));
+    return `<div class="supp-row"><span class="sname">${s.name}</span>`+
+      `<span class="snote">${s.note} · ${s.p}P/${s.c}C/${s.f}F 每${s.unit}</span>`+
+      `<span class="stepper"><button onclick="setMacro('${k}',${-s.step})">−</button>`+
+      `<span class="sq">${qtxt}</span><button onclick="setMacro('${k}',${s.step})">+</button></span></div>`;
+  }).join('');
+  const cEl=document.getElementById('suppMicro');
+  cEl.innerHTML=Object.entries(MICRO_SUPP).map(([k,m])=>{
+    const on=microOn[k]?'on':'';
+    return `<span class="mchip ${on}" onclick="toggleMicro('${k}')">${m.name} `+
+      `<span class="amt">${m.amt}</span> <span class="when">${m.when}</span></span>`;
+  }).join('');
+}
+function setMacro(k,d){macroQty[k]=Math.max(0,Math.round((macroQty[k]+d)*10)/10);render();}
+function toggleMicro(k){microOn[k]=!microOn[k];render();}
 
 function rg(v){return Math.max(5,Math.round(v/5)*5);}
 function rq(v,u){
@@ -349,6 +418,12 @@ function render(){
   document.getElementById('protval').textContent=ppk.toFixed(1);
   document.getElementById('presetVal').textContent=PRESETS[PRESET].label;
   document.getElementById('paramsVal').textContent=(DAY==='train'?'🔵 训练日':'⚪ 非训练日')+' · '+w+'kg · '+ppk.toFixed(1)+'g/kg';
+
+  const activeMacro=Object.values(macroQty).filter(q=>q>0).length;
+  const doneMicro=Object.keys(microOn).filter(k=>microOn[k]).length;
+  const totalMicro=Object.keys(MICRO_SUPP).length;
+  document.getElementById('suppVal').textContent='宏量'+activeMacro+'项 · 已服'+doneMicro+'/'+totalMicro;
+  renderSupp();
 
   const tP=Math.round(w*ppk);
   const tC=Math.round(w*(DAY==='train'?4.5:2.8));
@@ -410,6 +485,9 @@ function render(){
     mealsEl.appendChild(card);
   });
 
+  let sP=0,sC=0,sF=0;
+  Object.entries(macroQty).forEach(([k,q])=>{if(q>0){const s=MACRO_SUPP[k];sP+=s.p*q;sC+=s.c*q;sF+=s.f*q;}});
+  aP+=sP;aC+=sC;aF+=sF;
   const totP=Math.round(aP),totC=Math.round(aC),totF=Math.round(aF);
   const totK=totP*4+totC*4+totF*9;
   const max=Math.max(totP,totC,totF,tP,tC,tF);
@@ -427,10 +505,11 @@ function render(){
   d.textContent='实际合计 '+totK+' kcal ｜ 与目标差：蛋白 '+(dP>=0?'+':'')+dP+'g，碳水 '+
     (dC>=0?'+':'')+dC+'g，脂肪 '+(dF>=0?'+':'')+dF+'g'+
     (d.className==='delta ok'?' ✓ 合理范围内':' ⚠ 偏差较大，可微调主食/蛋白份量');
+  document.getElementById('suppNote').textContent='补剂贡献：蛋白 '+Math.round(sP)+'g · 碳水 '+Math.round(sC)+'g · 脂肪 '+Math.round(sF)+'g';
 
   document.getElementById('tips').innerHTML=PRESETS[PRESET].tips[DAY].map(t=>`<li>${t}</li>`).join('');
 
-  try{localStorage.setItem('diet_state',JSON.stringify({h,w,age,ppk,DAY,PRESET,swaps}));}catch(e){}
+  try{localStorage.setItem('diet_state',JSON.stringify({h,w,age,ppk,DAY,PRESET,swaps,macroQty,microOn}));}catch(e){}
  }catch(e){console.error('render error',e);}
 }
 
@@ -452,6 +531,8 @@ try{
   if(s.DAY)DAY=s.DAY;
   if(s.PRESET&&PRESETS[s.PRESET])PRESET=s.PRESET;
   if(s.swaps){const clean={};for(const kk in s.swaps){if(FOODS[s.swaps[kk]])clean[kk]=s.swaps[kk];}swaps=clean;}
+  if(s.macroQty){const mq={};for(const kk in s.macroQty){if(MACRO_SUPP[kk])mq[kk]=s.macroQty[kk];}if(Object.keys(mq).length)macroQty=Object.assign({whey:0,mass:0,bar:0,casein:0},mq);}
+  if(s.microOn){const mo={};for(const kk in s.microOn){if(MICRO_SUPP[kk])mo[kk]=!!s.microOn[kk];}microOn=mo;}
 }catch(e){}
 setPreset(PRESET);
 setDay(DAY);
