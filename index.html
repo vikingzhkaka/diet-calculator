@@ -102,6 +102,31 @@
   .mchip.on .amt{color:var(--accent)}
   .mchip .when{font-size:10px;background:#f1f5f9;border-radius:6px;padding:1px 6px;color:var(--sub);font-weight:400}
   .delta.supp{color:var(--sub);font-weight:400;margin-top:4px}
+
+  /* 日期导航 */
+  .dnav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .dbtn{width:34px;height:34px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:18px;line-height:1;cursor:pointer;color:var(--accent);font-weight:700}
+  .dbtn:active{background:#eef2ff}
+  .dtoday{padding:7px 12px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:13px;cursor:pointer;color:var(--sub);font-weight:600}
+  .dtoday:active{background:#eef2ff}
+  .dcur{font-weight:700;font-size:14px}
+  .dsync{margin-left:auto;font-size:12px;color:var(--sub);text-align:right}
+  .dstrip{display:flex;gap:5px;margin-top:12px;overflow-x:auto;padding-bottom:4px}
+  .dcell{flex:0 0 auto;width:34px;height:42px;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:13px;cursor:pointer;position:relative;color:var(--sub)}
+  .dcell.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .dcell.today{border-color:var(--warn)}
+  .dcell .dot{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--accent)}
+  .dcell.on .dot{background:#fff}
+  /* 趋势 */
+  .trend-row{display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding:6px 0 2px}
+  .tcell{flex:0 0 auto;width:30px;text-align:center}
+  .tcell .td{font-size:10px;color:var(--sub);margin-bottom:4px}
+  .tcell.cur .td{color:var(--accent);font-weight:700}
+  .tcell.empty .td{color:#cbd5e1}
+  .tbar{height:64px;display:flex;gap:2px;align-items:flex-end;justify-content:center;border-bottom:1px solid var(--line)}
+  .tb{width:6px;border-radius:2px 2px 0 0;min-height:2px}
+  .tb.bp{background:var(--p)} .tb.bc{background:var(--c)} .tb.bf{background:var(--f)}
+  .tb.empty{background:#e5e7eb}
   @media(max-width:620px){
     body{padding:16px 12px 48px}
     .grid{grid-template-columns:1fr 1fr}
@@ -132,6 +157,17 @@
 <div class="wrap">
   <h1>每日饮食计算器</h1>
 
+  <div class="card" id="dateNavCard">
+    <div class="dnav">
+      <button class="dbtn" onclick="shiftDay(-1)" title="前一天">‹</button>
+      <button class="dtoday" onclick="goToday()">今天</button>
+      <button class="dbtn" onclick="shiftDay(1)" title="后一天">›</button>
+      <span class="dcur" id="dCur"></span>
+      <span class="dsync" id="cloudStatus"></span>
+    </div>
+    <div class="dstrip" id="dateStrip"></div>
+  </div>
+
   <div class="card collapsible collapsed" id="cardPreset">
     <h2 class="chead" role="button" tabindex="0" onclick="toggleCard('cardPreset')"><span class="dot"></span>场景预设 <span class="cval" id="presetVal"></span><span class="chev">▾</span></h2>
     <div class="cbody">
@@ -157,6 +193,28 @@
       <button id="btnTrain" class="on" onclick="setDay('train')">🔵 训练日</button>
       <button id="btnRest" onclick="setDay('rest')">⚪ 非训练日</button>
     </div>
+    </div>
+  </div>
+
+  <div class="card collapsible collapsed" id="cardCloud">
+    <h2 class="chead" role="button" tabindex="0" onclick="toggleCard('cardCloud')"><span class="dot"></span>☁️ 云端同步 <span class="cval" id="cloudVal"></span><span class="chev">▾</span></h2>
+    <div class="cbody">
+      <div class="sub">GitHub 私有仓库自动同步（健康数据不公开）</div>
+      <div class="field" style="margin-bottom:10px"><label>Personal Access Token（需 repo 权限，仅存本机浏览器）</label>
+        <input id="cloudToken" type="password" placeholder="ghp_..." style="width:100%"></div>
+      <div class="field" style="margin-bottom:10px"><label>仓库（owner/repo）</label>
+        <input id="cloudRepo" type="text" value="vikingzhkaka/diet-log" style="width:100%"></div>
+      <div class="preset">
+        <button onclick="saveCloud()">保存并测试</button>
+        <button onclick="pushToCloud();renderCloudStatus('手动同步中…')">立即同步</button>
+        <button onclick="pullFromCloud()">从云端拉取</button>
+      </div>
+      <div class="pnote" id="cloudMsg" style="margin-top:8px"></div>
+      <ul class="tips" style="margin-top:8px">
+        <li>Token 仅在你的浏览器本地保存，不上传第三方</li>
+        <li>仓库须为私有；首次同步自动在仓库创建 diet-log.json</li>
+        <li>换设备时，填同仓库 Token 后点「从云端拉取」即可恢复</li>
+      </ul>
     </div>
   </div>
 
@@ -195,6 +253,16 @@
     </div>
     <div class="delta" id="delta"></div>
     <div class="delta supp" id="suppNote"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>📈 近14天达成率 <span style="font-size:11px;color:var(--sub);font-weight:400">（柱高=实际/目标，满格100%，封顶130%）</span></h2>
+    <div class="trend-row" id="trend"></div>
+    <div class="legend" style="margin-top:6px">
+      <span>蛋白 <b style="color:var(--p)">■</b></span>
+      <span>碳水 <b style="color:var(--c)">■</b></span>
+      <span>脂肪 <b style="color:var(--f)">■</b></span>
+    </div>
   </div>
 
   <div class="card">
@@ -372,6 +440,14 @@ const PRESETS = {
 let DAY='train', PRESET='home';
 let swaps={};  // "preset|day|mealIdx|itemIdx" -> foodKey
 
+// ---------- 每日记录 / 云端同步 状态 ----------
+let selDate='';            // 当前选中的日期 YYYY-MM-DD
+let navEnd='';             // 日期条窗口末端
+let diet_log={};           // { 'YYYY-MM-DD': entry }
+let cloud={};              // { token, repo }
+let suppressRecord=false;  // loadDay 期间抑制自动记录
+let syncTimer=null, lastSync=0;
+
 function setDay(d){DAY=d;
   document.getElementById('btnTrain').classList.toggle('on',d==='train');
   document.getElementById('btnRest').classList.toggle('on',d==='rest');
@@ -408,6 +484,141 @@ function rq(v,u){
   if(u==='勺')return Math.round(v*2)/2;
   if(u==='×20g')return Math.max(1,Math.round(v));
   return Math.round(v*10)/10;}
+
+// ---------- 日期 / 记录 / 云端 ----------
+function dateStr(d){const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+day;}
+function todayStr(){return dateStr(new Date());}
+function seedEntry(){return {h:178,w:86,age:36,ppk:1.8,DAY:'train',PRESET:'home',swaps:{},macroQty:{whey:1,bar:0},microOn:{}};}
+
+function loadDay(date){
+  selDate=date; navEnd=date;
+  const e=diet_log[date]||seedEntry();
+  document.getElementById('height').value=e.h;
+  document.getElementById('weight').value=e.w;
+  document.getElementById('age').value=e.age;
+  document.getElementById('prot').value=e.ppk;
+  DAY=e.DAY; PRESET=e.PRESET;
+  swaps=JSON.parse(JSON.stringify(e.swaps||{}));
+  macroQty=Object.assign({whey:0,bar:0},e.macroQty||{});
+  microOn=JSON.parse(JSON.stringify(e.microOn||{}));
+  suppressRecord=true;
+  try{ setPreset(PRESET); setDay(DAY); }catch(err){}
+  suppressRecord=false;
+  renderDateStrip(); renderTrend();
+}
+function recordDay(){
+  const e={
+    h:+document.getElementById('height').value||178,
+    w:+document.getElementById('weight').value||86,
+    age:+document.getElementById('age').value||36,
+    ppk:+document.getElementById('prot').value,
+    DAY,PRESET,
+    swaps:JSON.parse(JSON.stringify(swaps)),
+    macroQty:JSON.parse(JSON.stringify(macroQty)),
+    microOn:JSON.parse(JSON.stringify(microOn)),
+    savedAt:Date.now()
+  };
+  diet_log[selDate]=e;
+  try{localStorage.setItem('diet_log',JSON.stringify(diet_log));}catch(err){}
+  renderDateStrip(); renderTrend(); scheduleSync();
+}
+function scheduleSync(){
+  if(!cloud.token) return;
+  if(syncTimer)clearTimeout(syncTimer);
+  syncTimer=setTimeout(pushToCloud,1200);
+}
+function renderCloudStatus(msg){
+  const v=document.getElementById('cloudVal'); if(v)v.textContent=cloud.token?(msg||'已配置'):'未配置';
+  const s=document.getElementById('cloudStatus'); if(s)s.textContent=msg||'';
+  const m=document.getElementById('cloudMsg'); if(m&&msg)m.textContent=msg;
+}
+function saveCloud(){
+  const t=document.getElementById('cloudToken').value.trim();
+  const r=document.getElementById('cloudRepo').value.trim()||'vikingzhkaka/diet-log';
+  if(!t){renderCloudStatus('请填写 Token');return;}
+  cloud={token:t,repo:r};
+  try{localStorage.setItem('diet_cloud',JSON.stringify(cloud));}catch(e){}
+  renderCloudStatus('已保存，测试中…');
+  pushToCloud();
+}
+async function pushToCloud(){
+  if(!cloud.token||!cloud.repo){renderCloudStatus('未配置');return;}
+  const parts=cloud.repo.split('/'); if(parts.length!==2){renderCloudStatus('仓库格式应为 owner/repo');return;}
+  const url='https://api.github.com/repos/'+parts[0]+'/'+parts[1]+'/contents/diet-log.json';
+  const body=JSON.stringify(diet_log);
+  let sha=null;
+  try{const r=await fetch(url,{headers:{Authorization:'Bearer '+cloud.token,Accept:'application/vnd.github+json'}});
+    if(r.status===200){const j=await r.json(); sha=j.sha;}}catch(e){}
+  try{
+    const r=await fetch(url,{method:'PUT',
+      headers:{Authorization:'Bearer '+cloud.token,Accept:'application/vnd.github+json','Content-Type':'application/json'},
+      body:JSON.stringify({message:'update diet log '+new Date().toISOString(),content:btoa(unescape(encodeURIComponent(body))),sha:sha||undefined})});
+    if(r.ok){lastSync=Date.now(); renderCloudStatus('已同步 '+timeStr());}
+    else{const t=await r.text(); renderCloudStatus('同步失败 '+r.status); console.error('push fail',t);}
+  }catch(e){renderCloudStatus('同步失败(网络)');}
+}
+async function pullFromCloud(){
+  if(!cloud.token||!cloud.repo){renderCloudStatus('未配置');return;}
+  const parts=cloud.repo.split('/');
+  const url='https://api.github.com/repos/'+parts[0]+'/'+parts[1]+'/contents/diet-log.json';
+  try{
+    const r=await fetch(url,{headers:{Authorization:'Bearer '+cloud.token,Accept:'application/vnd.github+json'}});
+    if(r.status===200){
+      const j=await r.json();
+      const remote=JSON.parse(decodeURIComponent(escape(atob(j.content))));
+      for(const d in remote){ if(!diet_log[d]||(remote[d].savedAt||0)>(diet_log[d].savedAt||0)) diet_log[d]=remote[d]; }
+      try{localStorage.setItem('diet_log',JSON.stringify(diet_log));}catch(e){}
+      if(diet_log[selDate]) loadDay(selDate); else {renderDateStrip(); renderTrend();}
+      renderCloudStatus('已拉取 '+Object.keys(remote).length+' 天');
+    } else if(r.status===404){ renderCloudStatus('云端暂无记录，稍后自动创建'); }
+    else { renderCloudStatus('拉取失败 '+r.status); }
+  }catch(e){renderCloudStatus('拉取失败(网络)');}
+}
+function timeStr(){const d=new Date();return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
+function selectDate(ds){loadDay(ds);}
+function shiftDay(n){const d=new Date(selDate+'T00:00:00');d.setDate(d.getDate()+n);loadDay(dateStr(d));}
+function goToday(){loadDay(todayStr());}
+function renderDateStrip(){
+  const end=new Date(navEnd+'T00:00:00');
+  let cells='';
+  for(let i=13;i>=0;i--){const d=new Date(end);d.setDate(d.getDate()-i);const ds=dateStr(d);
+    const rec=!!diet_log[ds];
+    const cls='dcell'+(ds===selDate?' on':'')+(rec?' rec':'')+(ds===todayStr()?' today':'');
+    cells+='<button class="'+cls+'" onclick="selectDate(\''+ds+'\')">'+d.getDate()+'<i class="dot"></i></button>';}
+  const strip=document.getElementById('dateStrip'); if(strip)strip.innerHTML=cells;
+  const cur=document.getElementById('dCur'); if(cur)cur.textContent=selDate+(selDate===todayStr()?'（今天）':'');
+}
+function calcEntry(e){
+  const w=e.w||86, ppk=e.ppk||1.8, DAY=e.DAY||'train', PRESET=e.PRESET||'home';
+  const swaps=e.swaps||{}, macroQty=e.macroQty||{};
+  const tP=Math.round(w*ppk), tC=Math.round(w*(DAY==='train'?4.5:2.8)), tF=Math.round(w*0.7);
+  const tpl=PRESETS[PRESET][DAY];
+  let bP=0,bC=0,bF=0;
+  tpl.forEach((m,mi)=>m.items.forEach(([k,q],ii)=>{let key=swaps[PRESET+'|'+DAY+'|'+mi+'|'+ii]||k; if(!FOODS[key])key=k; const f=FOODS[key]; bP+=f.p*q;bC+=f.c*q;bF+=f.f*q;}));
+  const fP=tP/bP, fC=tC/bC, fF=tF/bF;
+  let aP=0,aC=0,aF=0;
+  tpl.forEach((m,mi)=>m.items.forEach(([k,q],ii)=>{let key=swaps[PRESET+'|'+DAY+'|'+mi+'|'+ii]||k; if(!FOODS[key])key=k; const f=FOODS[key];
+    const factor=f.role==='prot'?fP:f.role==='carb'?fC:f.role==='fat'?fF:1;
+    const realQ=f.role==='veg'?q:(f.unit==='g'?rg(q*factor):q*factor); aP+=f.p*realQ;aC+=f.c*realQ;aF+=f.f*realQ;}));
+  let sP=0,sC=0,sF=0;
+  Object.entries(macroQty).forEach(([k,q])=>{if(q>0){const s=MACRO_SUPP[k];if(!s)return;sP+=s.p*q;sC+=s.c*q;sF+=s.f*q;}});
+  aP+=sP;aC+=sC;aF+=sF;
+  return {tP,tC,tF,aP:Math.round(aP),aC:Math.round(aC),aF:Math.round(aF)};
+}
+function renderTrend(){
+  const el=document.getElementById('trend'); if(!el)return;
+  const today=new Date();
+  let html='';
+  for(let i=13;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);const ds=dateStr(d);const e=diet_log[ds];
+    if(!e){html+='<div class="tcell empty"><div class="td">'+ds.slice(5)+'</div><div class="tbar"><span class="tb empty"></span></div></div>';continue;}
+    const c=calcEntry(e);
+    const pp=Math.min(1.3,c.aP/c.tP), cp=Math.min(1.3,c.aC/c.tC), fp=Math.min(1.3,c.aF/c.tF);
+    html+='<div class="tcell'+(ds===selDate?' cur':'')+'"><div class="td">'+ds.slice(5)+'</div><div class="tbar">'+
+      '<span class="tb bp" style="height:'+(pp/1.3*100)+'%"></span>'+
+      '<span class="tb bc" style="height:'+(cp/1.3*100)+'%"></span>'+
+      '<span class="tb bf" style="height:'+(fp/1.3*100)+'%"></span></div></div>';}
+  el.innerHTML=html;
+}
 
 function render(){
  try{
@@ -509,7 +720,7 @@ function render(){
 
   document.getElementById('tips').innerHTML=PRESETS[PRESET].tips[DAY].map(t=>`<li>${t}</li>`).join('');
 
-  try{localStorage.setItem('diet_state',JSON.stringify({h,w,age,ppk,DAY,PRESET,swaps,macroQty,microOn}));}catch(e){}
+  try{ if(!suppressRecord) recordDay(); }catch(e){}
  }catch(e){console.error('render error',e);}
 }
 
@@ -522,20 +733,23 @@ Object.entries(PRESETS).forEach(([k,v])=>{
 });
 ['height','weight','age','prot'].forEach(id=>document.getElementById(id).addEventListener('input',render));
 
-try{
-  const s=JSON.parse(localStorage.getItem('diet_state')||'{}');
-  if(s.h)document.getElementById('height').value=s.h;
-  if(s.w)document.getElementById('weight').value=s.w;
-  if(s.age)document.getElementById('age').value=s.age;
-  if(s.ppk)document.getElementById('prot').value=s.ppk;
-  if(s.DAY)DAY=s.DAY;
-  if(s.PRESET&&PRESETS[s.PRESET])PRESET=s.PRESET;
-  if(s.swaps){const clean={};for(const kk in s.swaps){if(FOODS[s.swaps[kk]])clean[kk]=s.swaps[kk];}swaps=clean;}
-  if(s.macroQty){const mq={};for(const kk in s.macroQty){if(MACRO_SUPP[kk])mq[kk]=s.macroQty[kk];}if(Object.keys(mq).length)macroQty=Object.assign({whey:0,bar:0},mq);}
-  if(s.microOn){const mo={};for(const kk in s.microOn){if(MICRO_SUPP[kk])mo[kk]=!!s.microOn[kk];}microOn=mo;}
-}catch(e){}
-setPreset(PRESET);
-setDay(DAY);
+// ---------- 启动：恢复本地日志 + 云端配置 ----------
+try{const L=JSON.parse(localStorage.getItem('diet_log')||'{}');if(L&&typeof L==='object')diet_log=L;}catch(e){}
+try{const c=JSON.parse(localStorage.getItem('diet_cloud')||'{}');if(c&&c.token)cloud=c;}catch(e){}
+// 旧版 diet_state 迁移：若本地尚无日志但有过往单份状态，灌入今天
+if(Object.keys(diet_log).length===0){
+  try{const s=JSON.parse(localStorage.getItem('diet_state')||'{}');
+    if(s&&s.PRESET){diet_log[todayStr()]={h:s.h||178,w:s.w||86,age:s.age||36,ppk:s.ppk||1.8,DAY:s.DAY||'train',PRESET:s.PRESET,swaps:s.swaps||{},macroQty:s.macroQty||{whey:1,bar:0},microOn:s.microOn||{},savedAt:Date.now()};}
+  }catch(e){}
+}
+if(cloud.token){
+  document.getElementById('cloudToken').value=cloud.token;
+  document.getElementById('cloudRepo').value=cloud.repo||'vikingzhkaka/diet-log';
+}
+renderCloudStatus(cloud.token?'已配置':'未配置');
+selDate=todayStr(); navEnd=selDate;
+loadDay(selDate);
+if(cloud.token) pullFromCloud();
 </script>
 </body>
 </html>
