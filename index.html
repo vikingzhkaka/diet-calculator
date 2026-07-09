@@ -110,6 +110,9 @@
   .dtoday{padding:7px 12px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:13px;cursor:pointer;color:var(--sub);font-weight:600}
   .dtoday:active{background:#eef2ff}
   .dcur{font-weight:700;font-size:14px}
+  .dsave{padding:7px 14px;border:1px solid var(--accent);background:var(--accent);border-radius:9px;font-size:13px;cursor:pointer;color:#fff;font-weight:600}
+  .dsave:active{background:#1d4ed8}
+  .dsave-state{font-size:12px;color:var(--accent2);font-weight:600;margin-left:2px}
   .dsync{margin-left:auto;font-size:12px;color:var(--sub);text-align:right}
   .dstrip{display:flex;gap:5px;margin-top:12px;overflow-x:auto;padding-bottom:4px}
   .dcell{flex:0 0 auto;width:34px;height:42px;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:13px;cursor:pointer;position:relative;color:var(--sub)}
@@ -163,6 +166,8 @@
       <button class="dtoday" onclick="goToday()">今天</button>
       <button class="dbtn" onclick="shiftDay(1)" title="后一天">›</button>
       <span class="dcur" id="dCur"></span>
+      <button class="dsave" onclick="saveToday()" title="保存今日饮食记录（可随时再点修改）">💾 保存今日</button>
+      <span class="dsave-state" id="dsaveState"></span>
       <span class="dsync" id="cloudStatus"></span>
     </div>
     <div class="dstrip" id="dateStrip"></div>
@@ -520,7 +525,16 @@ function recordDay(){
   };
   diet_log[selDate]=e;
   try{localStorage.setItem('diet_log',JSON.stringify(diet_log));}catch(err){}
+  const st=document.getElementById('dsaveState');
+  if(st) st.textContent='已保存 '+timeStr();
   renderDateStrip(); renderTrend(); scheduleSync();
+}
+function saveToday(){
+  recordDay();                       // 写入本地 + 显示「已保存 HH:MM」
+  if(cloud.token){ pushToCloud();   // 配了云端则立即同步，不等 1.2s 防抖
+    const st=document.getElementById('dsaveState');
+    if(st) st.textContent='已保存 '+timeStr()+' · 云端同步中…';
+  }
 }
 function scheduleSync(){
   if(!cloud.token) return;
