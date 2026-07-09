@@ -270,19 +270,19 @@ const FOODS = {
 // ---------- 补剂（独立于三餐，统一在「补剂记录」卡片管理） ----------
 const MACRO_SUPP = {
   whey:   {name:'乳清蛋白粉', p:24, c:3,  f:1,   unit:'勺', step:0.5, note:'练后30分钟内吸收快'},
-  mass:   {name:'增肌粉',     p:25, c:50, f:2,   unit:'勺', step:0.5, note:'碳水高，练后/加餐'},
-  casein: {name:'酪蛋白',     p:24, c:1,  f:0.5, unit:'勺', step:0.5, note:'睡前慢释，整夜供能'},
   bar:    {name:'蛋白棒',     p:20, c:25, f:6,   unit:'根', step:1,   note:'代餐/外出便携'},
 };
 const MICRO_SUPP = {
-  creatine:{name:'肌酸',   amt:'5g',    when:'训练日', note:'提升力量与恢复'},
-  fishoil: {name:'鱼油',   amt:'2g',    when:'每日',   note:'补Omega-3'},
-  caffeine:{name:'咖啡因', amt:'200mg', when:'训前',   note:'提升训练专注'},
-  multi:   {name:'复合维矿',amt:'1粒',   when:'每日',   note:'基础微量营养'},
-  electro: {name:'电解质',  amt:'1包',   when:'训练日', note:'防抽筋/脱水'},
-  mag:     {name:'镁',     amt:'200mg', when:'睡前',   note:'助眠/放松'},
+  creatine:   {name:'肌酸',     amt:'3g',    when:'每日',   note:'提升力量与恢复'},
+  fishoil:    {name:'鱼油',     amt:'2g',    when:'每日',   note:'补Omega-3'},
+  caffeine:   {name:'咖啡因',   amt:'200mg', when:'训前',   note:'提升训练专注'},
+  multi:      {name:'复合维矿', amt:'1粒',   when:'每日',   note:'基础微量营养'},
+  vitaminBCD: {name:'维生素BCD',amt:'1粒',   when:'每日',   note:'B族供能/C抗氧化/D促钙吸收'},
+  coq10:      {name:'辅酶Q10',  amt:'100mg', when:'每日',   note:'护心/抗氧'},
+  lcar:       {name:'左旋肉碱', amt:'500mg', when:'训练日', note:'训前促脂肪供能'},
+  zma:        {name:'锌镁',     amt:'1片',   when:'睡前',   note:'助眠/睾酮支持'},
 };
-let macroQty = {whey:1, mass:0, bar:0, casein:0};
+let macroQty = {whey:1, bar:0};
 let microOn  = {};
 
 // ---------- 预设（每个含 train / rest 两套模板，items 为 [食物key, 基础份量]） ----------
@@ -486,7 +486,7 @@ function render(){
   });
 
   let sP=0,sC=0,sF=0;
-  Object.entries(macroQty).forEach(([k,q])=>{if(q>0){const s=MACRO_SUPP[k];sP+=s.p*q;sC+=s.c*q;sF+=s.f*q;}});
+  Object.entries(macroQty).forEach(([k,q])=>{if(q>0){const s=MACRO_SUPP[k];if(!s)return;sP+=s.p*q;sC+=s.c*q;sF+=s.f*q;}});
   aP+=sP;aC+=sC;aF+=sF;
   const totP=Math.round(aP),totC=Math.round(aC),totF=Math.round(aF);
   const totK=totP*4+totC*4+totF*9;
@@ -531,7 +531,7 @@ try{
   if(s.DAY)DAY=s.DAY;
   if(s.PRESET&&PRESETS[s.PRESET])PRESET=s.PRESET;
   if(s.swaps){const clean={};for(const kk in s.swaps){if(FOODS[s.swaps[kk]])clean[kk]=s.swaps[kk];}swaps=clean;}
-  if(s.macroQty){const mq={};for(const kk in s.macroQty){if(MACRO_SUPP[kk])mq[kk]=s.macroQty[kk];}if(Object.keys(mq).length)macroQty=Object.assign({whey:0,mass:0,bar:0,casein:0},mq);}
+  if(s.macroQty){const mq={};for(const kk in s.macroQty){if(MACRO_SUPP[kk])mq[kk]=s.macroQty[kk];}if(Object.keys(mq).length)macroQty=Object.assign({whey:0,bar:0},mq);}
   if(s.microOn){const mo={};for(const kk in s.microOn){if(MICRO_SUPP[kk])mo[kk]=!!s.microOn[kk];}microOn=mo;}
 }catch(e){}
 setPreset(PRESET);
