@@ -109,17 +109,22 @@
   .dbtn:active{background:#eef2ff}
   .dtoday{padding:7px 12px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:13px;cursor:pointer;color:var(--sub);font-weight:600}
   .dtoday:active{background:#eef2ff}
-  .dcur{font-weight:700;font-size:14px}
+  .current-date{display:flex;align-items:baseline;gap:8px;margin-left:2px}
+  .current-date .month-day{font-size:18px;font-weight:700;color:var(--ink)}
+  .current-date .weekday{font-size:13px;color:var(--sub)}
   .dsave{padding:7px 14px;border:1px solid var(--accent);background:var(--accent);border-radius:9px;font-size:13px;cursor:pointer;color:#fff;font-weight:600}
   .dsave:active{background:#1d4ed8}
   .dsave-state{font-size:12px;color:var(--accent2);font-weight:600;margin-left:2px}
   .dsync{margin-left:auto;font-size:12px;color:var(--sub);text-align:right}
-  .dstrip{display:flex;gap:5px;margin-top:12px;overflow-x:auto;padding-bottom:4px}
-  .dcell{flex:0 0 auto;width:34px;height:42px;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:13px;cursor:pointer;position:relative;color:var(--sub)}
-  .dcell.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .dstrip{display:flex;gap:6px;margin-top:12px;overflow-x:auto;padding-bottom:4px}
+  .dcell{flex:0 0 auto;width:42px;height:54px;border:1px solid var(--line);background:#fff;border-radius:10px;cursor:pointer;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+  .dcell .wd{font-size:11px;color:#9ca3af}
+  .dcell .dn{font-size:15px;font-weight:700;color:var(--ink)}
+  .dcell.on{background:var(--accent);border-color:var(--accent)}
+  .dcell.on .wd,.dcell.on .dn{color:#fff}
   .dcell.today{border-color:var(--warn)}
-  .dcell .dot{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--accent)}
-  .dcell.on .dot{background:#fff}
+  .dcell .rec{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--accent2)}
+  .dcell.on .rec{background:#fff}
   /* 趋势 */
   .trend-row{display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding:6px 0 2px}
   .tcell{flex:0 0 auto;width:30px;text-align:center}
@@ -160,17 +165,23 @@
 <div class="wrap">
   <h1>每日饮食计算器</h1>
 
-  <div class="card" id="dateNavCard">
+  <div class="card collapsible collapsed" id="dateNavCard">
+    <h2 class="chead" role="button" tabindex="0" onclick="toggleCard('dateNavCard')"><span class="dot"></span>日期 <span class="cval" id="dateVal"></span><span class="chev">▾</span></h2>
+    <div class="cbody">
     <div class="dnav">
       <button class="dbtn" onclick="shiftDay(-1)" title="前一天">‹</button>
       <button class="dtoday" onclick="goToday()">今天</button>
       <button class="dbtn" onclick="shiftDay(1)" title="后一天">›</button>
-      <span class="dcur" id="dCur"></span>
+      <div class="current-date">
+        <span class="month-day" id="mdCur"></span>
+        <span class="weekday" id="wdCur"></span>
+      </div>
       <button class="dsave" onclick="saveToday()" title="保存今日饮食记录（可随时再点修改）">💾 保存今日</button>
       <span class="dsave-state" id="dsaveState"></span>
       <span class="dsync" id="cloudStatus"></span>
     </div>
     <div class="dstrip" id="dateStrip"></div>
+    </div>
   </div>
 
   <div class="card collapsible collapsed" id="cardPreset">
@@ -608,15 +619,21 @@ function timeStr(){const d=new Date();return ('0'+d.getHours()).slice(-2)+':'+('
 function selectDate(ds){loadDay(ds);}
 function shiftDay(n){const d=new Date(selDate+'T00:00:00');d.setDate(d.getDate()+n);loadDay(dateStr(d));}
 function goToday(){loadDay(todayStr());}
+const WD=['日','一','二','三','四','五','六'];
 function renderDateStrip(){
   const end=new Date(navEnd+'T00:00:00');
   let cells='';
   for(let i=13;i>=0;i--){const d=new Date(end);d.setDate(d.getDate()-i);const ds=dateStr(d);
     const rec=!!diet_log[ds];
     const cls='dcell'+(ds===selDate?' on':'')+(rec?' rec':'')+(ds===todayStr()?' today':'');
-    cells+='<button class="'+cls+'" onclick="selectDate(\''+ds+'\')">'+d.getDate()+'<i class="dot"></i></button>';}
+    cells+='<button class="'+cls+'" onclick="selectDate(\''+ds+'\')"><span class="wd">'+WD[d.getDay()]+'</span><span class="dn">'+d.getDate()+'</span>'+(rec?'<i class="rec"></i>':'')+'</button>';}
   const strip=document.getElementById('dateStrip'); if(strip)strip.innerHTML=cells;
-  const cur=document.getElementById('dCur'); if(cur)cur.textContent=selDate+(selDate===todayStr()?'（今天）':'');
+  const sd=new Date(selDate+'T00:00:00');
+  const md=(sd.getMonth()+1)+'月'+sd.getDate()+'日';
+  const wd=WD[sd.getDay()];
+  const dv=document.getElementById('dateVal'); if(dv)dv.textContent=md+' '+wd+(selDate===todayStr()?' · 今天':'');
+  const mc=document.getElementById('mdCur'); if(mc)mc.textContent=md;
+  const wc=document.getElementById('wdCur'); if(wc)wc.textContent=wd;
 }
 function calcEntry(e){
   const w=e.w||86, ppk=e.ppk||1.8, DAY=e.DAY||'train', PRESET=e.PRESET||'home';
