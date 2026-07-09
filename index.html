@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日饮食计算器 · 训练日 / 非训日</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#1f2933; --sub:#6b7280;
+    --line:#e5e7eb; --accent:#2563eb; --accent2:#059669; --warn:#d97706;
+    --p:#2563eb; --c:#f59e0b; --f:#ef4444;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.6;padding:24px 16px 60px}
+  .wrap{max-width:880px;margin:0 auto}
+  h1{font-size:22px;font-weight:700;margin-bottom:4px}
+  .lead{color:var(--sub);font-size:13px;margin-bottom:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:18px 18px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .card h2{font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .field label{display:block;font-size:12px;color:var(--sub);margin-bottom:6px}
+  .field input[type=number]{width:100%;padding:9px 10px;border:1px solid var(--line);
+    border-radius:9px;font-size:15px;color:var(--ink)}
+  .field input:focus{outline:none;border-color:var(--accent)}
+
+  .preset{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+  .preset button{flex:1;min-width:120px;border:1px solid var(--line);background:#fff;
+    padding:10px 8px;border-radius:10px;font-size:13px;color:var(--sub);cursor:pointer;
+    font-weight:600;transition:.15s;text-align:center}
+  .preset button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .pnote{font-size:12px;color:var(--warn);margin-top:8px;min-height:16px}
+
+  .toggle{display:flex;background:#eef2f7;border-radius:10px;padding:4px;margin-top:16px}
+  .toggle button{flex:1;border:none;background:transparent;padding:9px;border-radius:7px;
+    font-size:14px;color:var(--sub);cursor:pointer;font-weight:600;transition:.15s}
+  .toggle button.on{background:#fff;color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+
+  .slider-row{display:flex;align-items:center;gap:12px;margin-top:16px}
+  .slider-row input[type=range]{flex:1;accent-color:var(--accent)}
+  .slider-val{font-weight:700;color:var(--accent);min-width:62px;text-align:right;font-size:15px}
+
+  .targets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:4px}
+  .tbox{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+  .tbox .v{font-size:19px;font-weight:700}
+  .tbox .k{font-size:11px;color:var(--sub);margin-top:2px}
+  .tbox.p .v{color:var(--p)} .tbox.c .v{color:var(--c)} .tbox.f .v{color:var(--f)}
+
+  .meal{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px;background:#fff}
+  .meal .mhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .meal .mname{font-weight:700;font-size:14px}
+  .meal .mtime{font-size:12px;color:var(--sub)}
+  .meal .mmac{font-size:11px;color:var(--sub)}
+  .foods{display:flex;flex-wrap:wrap;gap:7px}
+  .food{background:#f1f5f9;border-radius:8px;padding:6px 10px;font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .food select{border:1px solid var(--accent);border-radius:6px;font-size:13px;color:var(--accent);
+    font-weight:700;padding:2px 4px;background:#fff;max-width:130px;cursor:pointer}
+  .food b{color:var(--ink)}
+  .food .q{color:var(--accent);font-weight:700}
+  .food .mac{color:var(--sub);font-size:11px}
+
+  .bar{height:14px;border-radius:7px;background:#eef2f7;overflow:hidden;display:flex;margin-top:6px}
+  .bar i{height:100%;display:block}
+  .bar .bp{background:var(--p)} .bar .bc{background:var(--c)} .bar .bf{background:var(--f)}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--sub);margin-top:8px;flex-wrap:wrap}
+  .legend span b{color:var(--ink)}
+  .delta{font-size:12px;margin-top:6px}
+  .delta.ok{color:var(--accent2)} .delta.off{color:var(--warn)}
+
+  .tips{font-size:13px;color:var(--sub)}
+  .tips li{margin-bottom:6px;list-style:none;padding-left:16px;position:relative}
+  .tips li:before{content:"›";position:absolute;left:2px;color:var(--accent);font-weight:700}
+  .foot{font-size:11px;color:#9ca3af;text-align:center;margin-top:24px}
+  @media(max-width:620px){.grid{grid-template-columns:1fr 1fr}.targets{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>每日饮食计算器</h1>
+  <div class="lead">基于《硬派健身》营养框架 · 三分化训练增肌方案 · 每个食物可下拉替换，份量自动适配目标</div>
+
+  <div class="card">
+    <h2><span class="dot"></span>场景预设</h2>
+    <div class="preset" id="presetBar"></div>
+    <div class="pnote" id="pnote"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>个人参数</h2>
+    <div class="grid">
+      <div class="field"><label>身高 (cm)</label><input id="height" type="number" value="178"></div>
+      <div class="field"><label>体重 (kg)</label><input id="weight" type="number" value="86"></div>
+      <div class="field"><label>年龄 (岁，用于热量估算)</label><input id="age" type="number" value="36"></div>
+    </div>
+    <div class="slider-row">
+      <label style="font-size:13px;color:var(--sub)">蛋白质目标</label>
+      <input id="prot" type="range" min="1.2" max="2.5" step="0.1" value="1.8">
+      <div class="slider-val"><span id="protval">1.8</span> g/kg</div>
+    </div>
+    <div class="toggle">
+      <button id="btnTrain" class="on" onclick="setDay('train')">🔵 训练日</button>
+      <button id="btnRest" onclick="setDay('rest')">⚪ 非训练日</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>当日营养目标</h2>
+    <div class="targets">
+      <div class="tbox p"><div class="v" id="tP">—</div><div class="k">蛋白质 (g)</div></div>
+      <div class="tbox c"><div class="v" id="tC">—</div><div class="k">碳水 (g)</div></div>
+      <div class="tbox f"><div class="v" id="tF">—</div><div class="k">脂肪 (g)</div></div>
+      <div class="tbox"><div class="v" id="tK">—</div><div class="k">摄入热量 (kcal)</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>当日食谱 <span style="font-size:11px;color:var(--sub);font-weight:400">（食物名可点击替换同类）</span></h2>
+    <div id="meals"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>实际摄入 vs 目标</h2>
+    <div class="bar" id="bar"></div>
+    <div class="legend">
+      <span>蛋白 <b id="lP">—</b></span>
+      <span>碳水 <b id="lC">—</b></span>
+      <span>脂肪 <b id="lF">—</b></span>
+    </div>
+    <div class="delta" id="delta"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>食物替换提示</h2>
+    <ul class="tips" id="tips"></ul>
+  </div>
+
+  <div class="foot">本工具为营养参考，非医疗建议 · 数据基于《硬派健身》力量训练者营养框架</div>
+</div>
+
+<script>
+// ---------- 食物数据库（每单位宏量：克单位=每克，其余=每标注单位） ----------
+// role 用于缩放系数；swap 用于同类替换分组（同组内单位一致）
+const FOODS = {
+  // 红肉/禽（swap:meat，单位g）
+  beef:      {name:'酱牛肉',  p:0.31, c:0.02, f:0.12, unit:'g', role:'prot', swap:'meat'},
+  porklean:  {name:'瘦猪肉',  p:0.20, c:0.00, f:0.06, unit:'g', role:'prot', swap:'meat'},
+  brisket:   {name:'牛腩',    p:0.18, c:0.00, f:0.15, unit:'g', role:'prot', swap:'meat'},
+  chicken:   {name:'鸡胸肉',  p:0.24, c:0.00, f:0.015,unit:'g', role:'prot', swap:'meat'},
+  chickenleg:{name:'鸡腿肉',  p:0.18, c:0.00, f:0.09, unit:'g', role:'prot', swap:'meat'},
+  lamb:      {name:'羊肉',    p:0.20, c:0.00, f:0.10, unit:'g', role:'prot', swap:'meat'},
+  // 水产（swap:fish，单位g）
+  bass:      {name:'鲈鱼',    p:0.19, c:0.00, f:0.02, unit:'g', role:'prot', swap:'meat'},   // 家常清蒸鱼，纳入蛋白可替换组
+  salmon:    {name:'三文鱼',  p:0.20, c:0.00, f:0.13, unit:'g', role:'prot', swap:'fish'},
+  shrimp:    {name:'虾仁',    p:0.20, c:0.00, f:0.02, unit:'g', role:'prot', swap:'fish'},
+  cod:       {name:'鳕鱼',    p:0.18, c:0.00, f:0.01, unit:'g', role:'prot', swap:'fish'},
+  tuna:      {name:'金枪鱼罐头',p:0.26,c:0.00, f:0.01, unit:'g', role:'prot', swap:'fish'},
+  basa:      {name:'巴沙鱼',  p:0.18, c:0.00, f:0.02, unit:'g', role:'prot', swap:'meat'},   // 平价白肉鱼，家常
+  // 蛋/奶（swap:milk，单位250ml；蛋为个）
+  egg:       {name:'全蛋',    p:6,    c:0.5,  f:5,    unit:'个', role:'prot', swap:'egg'},
+  eggG:      {name:'水煮蛋',  p:0.13, c:0.01, f:0.10, unit:'g', role:'prot', swap:'meat'},   // 按克计，便于在蛋白档位替换（≈13g蛋白/100g）
+  milkFull:  {name:'全脂牛奶',p:8,    c:12,   f:8,    unit:'250ml',role:'prot',swap:'milk'},
+  milkSkim:  {name:'脱脂牛奶',p:8,    c:12,   f:0,    unit:'250ml',role:'prot',swap:'milk'},
+  soy:       {name:'豆浆',    p:3,    c:1,    f:1.5,  unit:'250ml',role:'prot',swap:'milk'},
+  yogurt:    {name:'希腊酸奶',p:0.10, c:0.03, f:0,    unit:'100g',role:'prot',swap:'yogurt'},
+  // 植物蛋白（swap:plant，单位g）
+  tofu:      {name:'豆腐',    p:0.08, c:0.02, f:0.04, unit:'g', role:'prot', swap:'meat'},   // 家常豆制品，纳入蛋白可替换组
+  edamame:   {name:'毛豆',    p:0.11, c:0.07, f:0.05, unit:'g', role:'prot', swap:'meat'},   // 家常植物蛋白
+  chickpea:  {name:'鹰嘴豆',  p:0.09, c:0.27, f:0.02, unit:'g', role:'prot', swap:'plant'},
+  // 主食（swap:grain，单位g）
+  mantou:    {name:'馒头',    p:0.07, c:0.47, f:0.01, unit:'g', role:'carb', swap:'grain'},
+  rice:      {name:'米饭',    p:0.026,c:0.28, f:0.003,unit:'g', role:'carb', swap:'grain'},
+  brownRice: {name:'杂粮饭',  p:0.025,c:0.25, f:0.005,unit:'g', role:'carb', swap:'grain'},
+  oats:      {name:'燕麦片',  p:0.13, c:0.66, f:0.07, unit:'g', role:'carb', swap:'grain'},
+  pasta:     {name:'意面',    p:0.12, c:0.25, f:0.01, unit:'g', role:'carb', swap:'grain'},
+  quinoa:    {name:'藜麦',    p:0.04, c:0.18, f:0.01, unit:'g', role:'carb', swap:'grain'},
+  wbread:    {name:'全麦面包',p:2.5,  c:14,   f:1,    unit:'片', role:'carb', swap:'bread'},
+  // 薯类（swap:root，单位g）
+  sweetPot:  {name:'红薯',    p:0.011,c:0.20, f:0.002,unit:'g', role:'carb', swap:'root'},
+  purple:    {name:'紫薯',    p:0.011,c:0.20, f:0.002,unit:'g', role:'carb', swap:'root'},
+  yam:       {name:'山药',    p:0.009,c:0.18, f:0.001,unit:'g', role:'carb', swap:'root'},
+  potato:    {name:'土豆',    p:0.02, c:0.17, f:0.001,unit:'g', role:'carb', swap:'root'},
+  // 水果（swap:fruit）
+  banana:    {name:'香蕉',    p:1,    c:27,   f:0,    unit:'根', role:'carb', swap:'fruit'},
+  apple:     {name:'苹果',    p:0.3,  c:14,   f:0,    unit:'个', role:'carb', swap:'fruit'},
+  orange:    {name:'橙子',    p:0.08, c:11,   f:0,    unit:'个', role:'carb', swap:'fruit'},
+  kiwi:      {name:'猕猴桃',  p:0.05, c:10,   f:0.04, unit:'个', role:'carb', swap:'fruit'},
+  blueberry: {name:'蓝莓',    p:0.06, c:0.12, f:0.01, unit:'100g',role:'carb',swap:'berry'},
+  // 蔬菜（swap:veg，单位g）
+  broccoli:  {name:'西兰花',  p:0.03, c:0.07, f:0.004,unit:'g', role:'veg',  swap:'veg'},
+  spinach:   {name:'菠菜',    p:0.03, c:0.02, f:0.004,unit:'g', role:'veg',  swap:'veg'},
+  lettuce:   {name:'生菜',    p:0.01, c:0.02, f:0.001,unit:'g', role:'veg',  swap:'veg'},
+  carrot:    {name:'胡萝卜',  p:0.01, c:0.08, f:0.001,unit:'g', role:'veg',  swap:'veg'},
+  pepper:    {name:'青椒',    p:0.01, c:0.04, f:0.001,unit:'g', role:'veg',  swap:'veg'},
+  cucumber:  {name:'黄瓜',    p:0.007,c:0.02, f:0.001,unit:'g', role:'veg',  swap:'veg'},
+  // 脂肪/坚果（swap:fat，单位g）
+  nuts:      {name:'坚果',    p:0.2,  c:0.2,  f:0.6,  unit:'g', role:'fat',  swap:'fat'},
+  // 补剂
+  whey:      {name:'乳清蛋白粉',p:24,  c:3,    f:1,    unit:'勺', role:'prot', swap:'supp'},
+  honey:     {name:'蜂蜜',    p:0,    c:17,   f:0,    unit:'×20g',role:'carb',swap:'supp'},
+};
+
+// ---------- 预设（每个含 train / rest 两套模板，items 为 [食物key, 基础份量]） ----------
+const PRESETS = {
+  home:{
+    label:'🏠 居家标准',
+    note:'你的固定搭配：午餐酱牛肉+馒头，练后蛋白粉+蜂蜜。适合能自己做饭/带饭的日子。',
+    train:[
+      {name:'早餐',time:'7:30',items:[['egg',2],['oats',80],['milkFull',1]]},
+      {name:'午餐',time:'12:00',items:[['beef',150],['mantou',200],['broccoli',200]]},
+      {name:'训前加餐',time:'16:00',items:[['banana',1],['wbread',2]]},
+      {name:'练后即刻',time:'训练结束',items:[['whey',1],['honey',3]]},
+      {name:'晚餐',time:'19:30',items:[['rice',350],['chickenleg',150],['broccoli',200]]},
+      {name:'睡前',time:'22:00',items:[['milkSkim',1],['nuts',15]]},
+    ],
+    rest:[
+      {name:'早餐',time:'7:30',items:[['egg',2],['oats',60],['milkFull',1]]},
+      {name:'午餐',time:'12:00',items:[['beef',150],['brownRice',200],['broccoli',200]]},
+      {name:'下午加餐',time:'15:30',items:[['apple',1],['nuts',15]]},
+      {name:'晚餐',time:'19:00',items:[['sweetPot',250],['chickenleg',120],['broccoli',200]]},
+      {name:'睡前',time:'22:00',items:[['milkSkim',1],['whey',0.5],['nuts',15]]},
+    ],
+    tips:{
+      train:['午餐蛋白质可换：瘦猪肉/牛腩(肌酸更高)/鸡腿肉/羊肉','主食可换米饭/杂粮饭/意面/藜麦',
+             '练后蜂蜜可换葡萄糖粉50g（更快拉升胰岛素）','鸡腿肉可换三文鱼(补Omega-3)/虾仁/豆腐/毛豆',
+             '香蕉训前用（快碳），非训日加餐可换苹果/蓝莓'],
+      rest:['非训练日主食换粗粮：杂粮饭/红薯/紫薯/山药/土豆','酱牛肉不变，午餐馒头→杂粮饭或杂粮馒头',
+            '鸡腿肉可换清蒸鱼/豆腐/毛豆/水煮蛋','下午加餐水果可换蓝莓/橙子/猕猴桃','坚果控量15g，避免脂肪超标'],
+    }
+  },
+  travel:{
+    label:'✈️ 出差外食',
+    note:'真实外食点单版：外卖/便利店/餐厅都能照着点。蛋白粉+蜂蜜自带雷打不动，重油菜涮水去油。',
+    train:[
+      {name:'🏨 酒店早餐',time:'7:30',items:[['egg',2],['oats',60],['milkFull',1]]},
+      {name:'🥡 外卖午餐',time:'12:00',items:[['chickenleg',200],['rice',180],['broccoli',200]]},
+      {name:'🏪 便利店加餐',time:'16:00',items:[['banana',1],['wbread',2]]},
+      {name:'💪 练后即刻·自带',time:'训练结束',items:[['whey',1],['honey',3]]},
+      {name:'🍲 餐厅晚餐',time:'19:30',items:[['bass',300],['rice',200],['broccoli',200]]},
+      {name:'🌙 睡前',time:'22:00',items:[['milkSkim',1],['nuts',15]]},
+    ],
+    rest:[
+      {name:'🏨 酒店早餐',time:'7:30',items:[['egg',2],['oats',60],['milkFull',1]]},
+      {name:'🥡 外卖午餐',time:'12:00',items:[['chickenleg',200],['brownRice',180],['broccoli',200]]},
+      {name:'🏪 便利店加餐',time:'15:30',items:[['apple',1],['nuts',15]]},
+      {name:'🍲 餐厅晚餐',time:'19:00',items:[['bass',250],['sweetPot',250],['broccoli',200]]},
+      {name:'🌙 睡前',time:'22:00',items:[['milkSkim',1],['whey',0.5],['nuts',15]]},
+    ],
+    tips:{
+      train:['外卖午餐：老乡鸡/沙县「白切鸡(去皮)」+米饭减半；或麦当劳板烧鸡腿堡(去酱)+玉米杯，别配薯条',
+             '餐厅晚餐：清蒸鲈鱼 / 清汤麻辣烫(多涮绿叶菜) / 椰子鸡火锅；蘸料用醋+蒜，别用麻酱',
+             '练后蛋白粉+蜂蜜自带，酒店热水器一冲就完事，雷打不动','便利店兜底：即食鸡胸+饭团/全麦面包+无糖酸奶',
+             '重油菜过一遍开水涮掉浮油；红烧/糖醋/油炸一律避开'],
+      rest:['外卖午餐：卤牛肉饭(肉加量饭减半)/白切鸡，替代居家酱牛肉+杂粮饭',
+            '餐厅晚餐：清蒸鱼/清汤麻辣烫替代红薯+鸡腿；椰子鸡、潮汕牛肉火锅都友好',
+            '蛋白粉自带不变，便利店脱脂奶补充；出差几天不影响长期增肌，别焦虑',
+            '便利店：即食鸡胸+关东煮(鸡蛋/萝卜/海带)+无糖酸奶，比外卖稳',
+            '奶茶换无糖、避开油炸红烧糖醋，选蒸/煮/炖/卤'],
+    }
+  },
+  leg:{
+    label:'🦵 周末腿训',
+    note:'上午训练，训前碳水加量；请用「训练日」模式。消耗最大，糖原恢复需24h+。',
+    train:[
+      {name:'训前早餐',time:'7:00',items:[['egg',2],['oats',100],['milkFull',1],['banana',1]]},
+      {name:'练后即刻',time:'10:30',items:[['whey',1],['honey',4]]},
+      {name:'练后午餐',time:'11:30',items:[['beef',150],['mantou',250],['broccoli',200]]},
+      {name:'下午加餐',time:'15:00',items:[['apple',1],['nuts',15]]},
+      {name:'晚餐',time:'18:30',items:[['rice',250],['chicken',150],['broccoli',200]]},
+      {name:'睡前',time:'22:00',items:[['milkSkim',1]]},
+    ],
+    rest:[
+      {name:'早餐',time:'7:30',items:[['egg',2],['oats',60],['milkFull',1]]},
+      {name:'午餐',time:'12:00',items:[['beef',150],['brownRice',200],['broccoli',200]]},
+      {name:'下午加餐',time:'15:30',items:[['apple',1],['nuts',15]]},
+      {name:'晚餐',time:'19:00',items:[['sweetPot',250],['chicken',120],['broccoli',200]]},
+      {name:'睡前',time:'22:00',items:[['milkSkim',1],['whey',0.5],['nuts',15]]},
+    ],
+    tips:{
+      train:['训前碳水加量：燕麦100g + 香蕉1根，上午训练唯一训前餐','练后蜂蜜提到80g(4×20g)，腿训糖原消耗最大',
+             '午餐馒头2.5个补糖原，酱牛肉不变','下午加餐苹果+坚果防低血糖','睡前只喝脱脂奶，不加粉——腿训后优先保证睡眠'],
+      rest:['周末腿训日请用训练日模式','非训日参考居家标准','腿训次日肌肉酸痛属正常，蛋白照常补','若连休两天，第二日切回非训日模板'],
+    }
+  }
+};
+
+let DAY='train', PRESET='home';
+let swaps={};  // "preset|day|mealIdx|itemIdx" -> foodKey
+
+function setDay(d){DAY=d;
+  document.getElementById('btnTrain').classList.toggle('on',d==='train');
+  document.getElementById('btnRest').classList.toggle('on',d==='rest');
+  render();}
+function setPreset(p){PRESET=p;
+  document.querySelectorAll('#presetBar button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+  document.getElementById('pnote').textContent=PRESETS[p].note;
+  render();}
+function swap(id,key){swaps[id]=key;render();}
+
+function rg(v){return Math.max(5,Math.round(v/5)*5);}
+function rq(v,u){
+  if(u==='个'||u==='根'||u==='片'||u==='250ml')return Math.max(1,Math.round(v));
+  if(u==='勺')return Math.round(v*2)/2;
+  if(u==='×20g')return Math.max(1,Math.round(v));
+  return Math.round(v*10)/10;}
+
+function render(){
+ try{
+  const h=+document.getElementById('height').value||178;
+  const w=+document.getElementById('weight').value||86;
+  const age=+document.getElementById('age').value||36;
+  const ppk=+document.getElementById('prot').value;
+  document.getElementById('protval').textContent=ppk.toFixed(1);
+
+  const tP=Math.round(w*ppk);
+  const tC=Math.round(w*(DAY==='train'?4.5:2.8));
+  const tF=Math.round(w*0.7);
+  const tK=tP*4+tC*4+tF*9;
+  document.getElementById('tP').textContent=tP;
+  document.getElementById('tC').textContent=tC;
+  document.getElementById('tF').textContent=tF;
+  document.getElementById('tK').textContent=Math.round(tK);
+
+  const tpl=PRESETS[PRESET][DAY];
+  // 构建有效食物列表（应用用户替换）
+  let eff=[];
+  tpl.forEach((m,mi)=>m.items.forEach(([k,q],ii)=>{
+    const id=`${PRESET}|${DAY}|${mi}|${ii}`;
+    let key=swaps[id]||k;
+    if(!FOODS[key]) key=k;
+    eff.push({id,key,qty:q});
+  }));
+  // 基准宏量（用有效食物的基础份量）
+  let bP=0,bC=0,bF=0;
+  eff.forEach(it=>{const f=FOODS[it.key];bP+=f.p*it.qty;bC+=f.c*it.qty;bF+=f.f*it.qty;});
+  const fP=tP/bP, fC=tC/bC, fF=tF/bF;
+
+  let aP=0,aC=0,aF=0;
+  const mealsEl=document.getElementById('meals');
+  mealsEl.innerHTML='';
+  tpl.forEach((m,mi)=>{
+    let mp=0,mc=0,mf=0;
+    const foodsHtml=m.items.map(([defKey,q],ii)=>{
+      const id=`${PRESET}|${DAY}|${mi}|${ii}`;
+      let key=swaps[id]||defKey;
+      if(!FOODS[key]) key=defKey;
+      const f=FOODS[key];
+      const factor=f.role==='prot'?fP:f.role==='carb'?fC:f.role==='fat'?fF:1;
+      const realQ=f.role==='veg'?q:(f.unit==='g'?rg(q*factor):q*factor);
+      const dispQ=f.role==='veg'?q:(f.unit==='g'?rg(q*factor):rq(q*factor,f.unit));
+      const cp=f.p*realQ, cc=f.c*realQ, cf=f.f*realQ;
+      mp+=cp;mc+=cc;mf+=cf;aP+=cp;aC+=cc;aF+=cf;
+      const qtyTxt=f.unit==='×20g'?(dispQ+'×20g'):(dispQ+' '+f.unit);
+      // 同类替换下拉
+      const opts=Object.entries(FOODS).filter(([_,v])=>v.swap===f.swap);
+      let nameHtml;
+      if(opts.length>1){
+        const sel=opts.map(([kk,vv])=>`<option value="${kk}"${kk===key?' selected':''}>${vv.name}</option>`).join('');
+        nameHtml=`<select onchange="swap('${id}',this.value)">${sel}</select>`;
+      }else{
+        nameHtml=`<b>${f.name}</b>`;
+      }
+      return `<span class="food">${nameHtml} <span class="q">${qtyTxt}</span>`+
+             `<span class="mac">蛋${Math.round(cp)}/碳${Math.round(cc)}/脂${Math.round(cf)}</span></span>`;
+    }).join('');
+    const card=document.createElement('div');
+    card.className='meal';
+    card.innerHTML=`<div class="mhead"><div><span class="mname">${m.name}</span> `+
+      `<span class="mtime">${m.time}</span></div>`+
+      `<div class="mmac">蛋白${Math.round(mp)} · 碳水${Math.round(mc)} · 脂肪${Math.round(mf)}</div></div>`+
+      `<div class="foods">${foodsHtml}</div>`;
+    mealsEl.appendChild(card);
+  });
+
+  const totP=Math.round(aP),totC=Math.round(aC),totF=Math.round(aF);
+  const totK=totP*4+totC*4+totF*9;
+  const max=Math.max(totP,totC,totF,tP,tC,tF);
+  document.getElementById('bar').innerHTML=
+    `<i class="bp" style="width:${totP/max*100}%"></i>`+
+    `<i class="bc" style="width:${totC/max*100}%"></i>`+
+    `<i class="bf" style="width:${totF/max*100}%"></i>`;
+  document.getElementById('lP').textContent=`${totP}/${tP} g`;
+  document.getElementById('lC').textContent=`${totC}/${tC} g`;
+  document.getElementById('lF').textContent=`${totF}/${tF} g`;
+
+  const dP=totP-tP,dC=totC-tC,dF=totF-tF;
+  const d=document.getElementById('delta');
+  d.className='delta '+(Math.abs(dP)<=8&&Math.abs(dC)<=25&&Math.abs(dF)<=8?'ok':'off');
+  d.textContent='实际合计 '+totK+' kcal ｜ 与目标差：蛋白 '+(dP>=0?'+':'')+dP+'g，碳水 '+
+    (dC>=0?'+':'')+dC+'g，脂肪 '+(dF>=0?'+':'')+dF+'g'+
+    (d.className==='delta ok'?' ✓ 合理范围内':' ⚠ 偏差较大，可微调主食/蛋白份量');
+
+  document.getElementById('tips').innerHTML=PRESETS[PRESET].tips[DAY].map(t=>`<li>${t}</li>`).join('');
+
+  try{localStorage.setItem('diet_state',JSON.stringify({h,w,age,ppk,DAY,PRESET,swaps}));}catch(e){}
+ }catch(e){console.error('render error',e);}
+}
+
+// 预设按钮
+const pb=document.getElementById('presetBar');
+Object.entries(PRESETS).forEach(([k,v])=>{
+  const b=document.createElement('button');
+  b.dataset.p=k; b.textContent=v.label; b.onclick=()=>setPreset(k);
+  pb.appendChild(b);
+});
+['height','weight','age','prot'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+
+try{
+  const s=JSON.parse(localStorage.getItem('diet_state')||'{}');
+  if(s.h)document.getElementById('height').value=s.h;
+  if(s.w)document.getElementById('weight').value=s.w;
+  if(s.age)document.getElementById('age').value=s.age;
+  if(s.ppk)document.getElementById('prot').value=s.ppk;
+  if(s.DAY)DAY=s.DAY;
+  if(s.PRESET&&PRESETS[s.PRESET])PRESET=s.PRESET;
+  if(s.swaps){const clean={};for(const kk in s.swaps){if(FOODS[s.swaps[kk]])clean[kk]=s.swaps[kk];}swaps=clean;}
+}catch(e){}
+setPreset(PRESET);
+setDay(DAY);
+</script>
+</body>
+</html>
