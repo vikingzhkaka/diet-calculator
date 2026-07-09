@@ -345,6 +345,12 @@ const FOODS = {
   potato:    {name:'土豆',    p:0.02, c:0.17, f:0.001,unit:'g', role:'carb', swap:'root'},
   taro:      {name:'芋头',    p:0.022,c:0.18, f:0.002,unit:'g', role:'carb', swap:'root'},
   lotus:     {name:'莲藕',    p:0.019,c:0.17, f:0.001,unit:'g', role:'carb', swap:'root'},
+  // 其他慢碳（swap:root，单位g）— 非训日低密度慢碳主食替补
+  pumpkin:   {name:'贝贝南瓜',p:0.013,c:0.20, f:0.001,unit:'g', role:'carb', swap:'root'},
+  peas:      {name:'豌豆',    p:0.074,c:0.21, f:0.004,unit:'g', role:'carb', swap:'root'},
+  waterChest:{name:'荸荠',    p:0.012,c:0.142,f:0.002,unit:'g', role:'carb', swap:'root'},
+  chestnut:  {name:'板栗',    p:0.042,c:0.40, f:0.007,unit:'g', role:'carb', swap:'root'},
+  caltrop:   {name:'菱角',    p:0.045,c:0.21, f:0.001,unit:'g', role:'carb', swap:'root'},
   // 水果（swap:fruit）
   banana:    {name:'香蕉',    p:1,    c:27,   f:0,    unit:'根', role:'carb', swap:'fruit'},
   apple:     {name:'苹果',    p:0.3,  c:14,   f:0,    unit:'个', role:'carb', swap:'fruit'},
@@ -407,8 +413,9 @@ const PRESETS = {
       train:['午餐蛋白质可换：瘦猪肉/牛腩(肌酸更高)/鸡腿肉/羊肉','主食可换米饭/杂粮饭/意面/藜麦',
              '练后蜂蜜可换葡萄糖粉50g（更快拉升胰岛素）','鸡腿肉可换三文鱼(补Omega-3)/虾仁/豆腐/毛豆',
              '香蕉训前用（快碳），非训日加餐可换苹果/蓝莓'],
-      rest:['非训练日主食换粗粮：杂粮饭/红薯/紫薯/山药/土豆','酱牛肉不变，午餐馒头→杂粮饭或杂粮馒头',
-            '鸡腿肉可换清蒸鱼/豆腐/毛豆/水煮蛋','下午加餐水果可换蓝莓/橙子/猕猴桃','坚果控量15g，避免脂肪超标'],
+      rest:['非训练日主食换粗粮：杂粮饭/红薯/紫薯/山药/土豆/贝贝南瓜/豌豆等','酱牛肉不变，午餐馒头→杂粮饭或杂粮馒头',
+            '鸡腿肉可换清蒸鱼/豆腐/毛豆/水煮蛋','下午加餐水果可换蓝莓/橙子/猕猴桃','坚果控量15g，避免脂肪超标',
+            '薯类（红薯/紫薯/山药/土豆/芋头/莲藕/贝贝南瓜等）是慢碳主食替补，已选其一就不要再叠吃饭/馒头，避免碳水超标'],
     }
   },
   travel:{
