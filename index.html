@@ -48,6 +48,13 @@
   .toggle button{flex:1;border:none;background:transparent;padding:9px;border-radius:7px;
     font-size:14px;color:var(--sub);cursor:pointer;font-weight:600;transition:.15s}
   .toggle button.on{background:#fff;color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .goal-toggle{display:flex;background:#eef2f7;border-radius:12px;padding:5px;gap:6px}
+  .goal-toggle button{flex:1;border:none;background:transparent;padding:14px 8px;border-radius:8px;
+    font-size:16px;color:var(--sub);cursor:pointer;font-weight:700;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .goal-toggle button small{font-size:11px;font-weight:500;opacity:.7}
+  .goal-toggle button.on{background:#fff;color:var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .goal-toggle button.on#btnCut{color:#e65100}
+  .goal-card{background:linear-gradient(135deg,#fafbff,#f0f4ff)}
 
   .slider-row{display:flex;align-items:center;gap:12px;margin-top:16px}
   .slider-row input[type=range]{flex:1;accent-color:var(--accent)}
@@ -186,6 +193,15 @@
     </div>
     <div class="dstrip" id="dateStrip"></div>
     </div>
+  </div>
+
+  <div class="card goal-card">
+    <h2><span class="dot"></span>🎯 训练目标 <span style="font-size:11px;color:var(--sub);font-weight:400">（先选，再算营养）</span></h2>
+    <div class="goal-toggle">
+      <button id="btnGain" class="on" onclick="setGoal('gain')">💪 增肌<small>热量盈余</small></button>
+      <button id="btnCut" onclick="setGoal('cut')">🔥 减脂<small>热量缺口</small></button>
+    </div>
+    <div class="pnote" id="goalNote"></div>
   </div>
 
   <div class="card collapsible collapsed" id="cardPreset">
@@ -494,9 +510,24 @@ const PRESETS = {
   }
 };
 
-let DAY='train', PRESET='home';
+let DAY='train', PRESET='home', GOAL='gain';
 let swaps={};  // "preset|day|mealIdx|itemIdx" -> foodKey
 
+// 训练目标配置：增肌(热量盈余) / 减脂(热量缺口)
+const GOAL_CFG={
+  gain:{label:'增肌', ppk:1.8, cTrain:4.5, cRest:2.8, f:0.7,  note:'💪 增肌期：热量盈余，碳水充足支撑训练，蛋白维持 1.8g/kg'},
+  cut: {label:'减脂', ppk:2.0, cTrain:3.0, cRest:2.0, f:0.6,  note:'🔥 减脂期：热量缺口，碳水收紧但训前集中，蛋白提到 2.0g/kg 保肌'}
+};
+// 目标宏量：蛋白取用户滑块值，碳水/脂肪按目标配置（保证减脂期碳水收紧、蛋白不缩）
+function goalTargets(w,DAY,ppk,goal){const g=GOAL_CFG[goal||GOAL];ppk=ppk||g.ppk;return {tP:Math.round(w*ppk), tC:Math.round(w*(DAY==='train'?g.cTrain:g.cRest)), tF:Math.round(w*g.f)};}
+function setGoal(g){
+  GOAL=g;
+  document.getElementById('btnGain').classList.toggle('on',g==='gain');
+  document.getElementById('btnCut').classList.toggle('on',g==='cut');
+  document.getElementById('goalNote').textContent=GOAL_CFG[g].note;
+  const pEl=document.getElementById('prot'); if(pEl) pEl.value=GOAL_CFG[g].ppk;  // 自动设为该目标合理默认，用户仍可手动调
+  render();
+}
 // ---------- 每日记录 / 云端同步 状态 ----------
 let selDate='';            // 当前选中的日期 YYYY-MM-DD
 let navEnd='';             // 日期条窗口末端
@@ -546,7 +577,7 @@ function rq(v,u){
 // ---------- 日期 / 记录 / 云端 ----------
 function dateStr(d){const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+day;}
 function todayStr(){return dateStr(new Date());}
-function seedEntry(){return {h:178,w:86,age:36,ppk:1.8,DAY:'train',PRESET:'home',swaps:{},macroQty:{whey:1,bar:0},microOn:{},logged:null};}
+function seedEntry(){return {h:178,w:86,age:36,ppk:1.8,DAY:'train',PRESET:'home',GOAL:'gain',swaps:{},macroQty:{whey:1,bar:0},microOn:{},logged:null};}
 
 function loadDay(date){
   selDate=date; navEnd=date;
@@ -555,7 +586,10 @@ function loadDay(date){
   document.getElementById('weight').value=e.w;
   document.getElementById('age').value=e.age;
   document.getElementById('prot').value=e.ppk;
-  DAY=e.DAY; PRESET=e.PRESET;
+  DAY=e.DAY; PRESET=e.PRESET; GOAL=e.GOAL||'gain';
+  document.getElementById('btnGain').classList.toggle('on',GOAL==='gain');
+  document.getElementById('btnCut').classList.toggle('on',GOAL==='cut');
+  document.getElementById('goalNote').textContent=GOAL_CFG[GOAL].note;
   swaps=JSON.parse(JSON.stringify(e.swaps||{}));
   macroQty=Object.assign({whey:0,bar:0},e.macroQty||{});
   microOn=JSON.parse(JSON.stringify(e.microOn||{}));
@@ -571,7 +605,7 @@ function recordDay(){
     w:+document.getElementById('weight').value||86,
     age:+document.getElementById('age').value||36,
     ppk:+document.getElementById('prot').value,
-    DAY,PRESET,
+    DAY,PRESET,GOAL,
     swaps:JSON.parse(JSON.stringify(swaps)),
     macroQty:JSON.parse(JSON.stringify(macroQty)),
     microOn:JSON.parse(JSON.stringify(microOn)),
@@ -678,9 +712,9 @@ function renderDateStrip(){
   const wc=document.getElementById('wdCur'); if(wc)wc.textContent=wd;
 }
 function calcEntry(e){
-  const w=e.w||86, ppk=e.ppk||1.8, DAY=e.DAY||'train', PRESET=e.PRESET||'home';
+  const w=e.w||86, ppk=e.ppk||1.8, DAY=e.DAY||'train', PRESET=e.PRESET||'home', GOAL=e.GOAL||'gain';
   const swaps=e.swaps||{}, macroQty=e.macroQty||{};
-  const tP=Math.round(w*ppk), tC=Math.round(w*(DAY==='train'?4.5:2.8)), tF=Math.round(w*0.7);
+  const {tP,tC,tF}=goalTargets(w,DAY,ppk,e.GOAL);
   // 识别日志模式：直接按导入的实际食物/克数计算（不走按目标缩放）
   if(e.logged && e.logged.meals && e.logged.meals.length){
     let laP=0,laC=0,laF=0;
@@ -732,9 +766,7 @@ function render(){
   document.getElementById('suppVal').textContent='宏量'+activeMacro+'项 · 已服'+doneMicro+'/'+totalMicro;
   renderSupp();
 
-  const tP=Math.round(w*ppk);
-  const tC=Math.round(w*(DAY==='train'?4.5:2.8));
-  const tF=Math.round(w*0.7);
+  const {tP,tC,tF}=goalTargets(w,DAY,ppk);
   const tK=tP*4+tC*4+tF*9;
   document.getElementById('tP').textContent=tP;
   document.getElementById('tC').textContent=tC;
@@ -876,6 +908,12 @@ function importDay(){
     if(j.profile.ppk) document.getElementById('prot').value=j.profile.ppk;
     if(j.profile.DAY) DAY=j.profile.DAY;
     if(j.profile.PRESET&&PRESETS[j.profile.PRESET]) PRESET=j.profile.PRESET;
+    if(j.profile.GOAL&&GOAL_CFG[j.profile.GOAL]){
+      GOAL=j.profile.GOAL;
+      document.getElementById('btnGain').classList.toggle('on',GOAL==='gain');
+      document.getElementById('btnCut').classList.toggle('on',GOAL==='cut');
+      document.getElementById('goalNote').textContent=GOAL_CFG[GOAL].note;
+    }
   }
   const targetDate=j.date||selDate;
   // 合并模式：已登录录状态下新导入的餐追加（同餐名则替换该餐 items），不覆盖已有餐
@@ -926,7 +964,7 @@ function exportDay(){
     });
   }
   const supps=(logged&&logged.macroQty)?logged.macroQty:macroQty;
-  const out={date:selDate, profile:{h:+document.getElementById('height').value,w:+document.getElementById('weight').value,age:+document.getElementById('age').value,ppk:+document.getElementById('prot').value,DAY,PRESET}, meals, supps};
+  const out={date:selDate, profile:{h:+document.getElementById('height').value,w:+document.getElementById('weight').value,age:+document.getElementById('age').value,ppk:+document.getElementById('prot').value,DAY,PRESET,GOAL}, meals, supps};
   box.value=JSON.stringify(out,null,1);
   const msg=document.getElementById('importMsg');
   msg.textContent='✓ 已导出到上方文本框，可复制备份';msg.style.color='var(--accent2)';
@@ -938,8 +976,8 @@ function clearLogged(){
   render(); renderDateStrip(); renderTrend();
 }
 function tP0(){return Math.round((+document.getElementById('weight').value||86)*(+document.getElementById('prot').value||1.8));}
-function tC0(){return Math.round((+document.getElementById('weight').value||86)*((DAY==='train')?4.5:2.8));}
-function tF0(){return Math.round((+document.getElementById('weight').value||86)*0.7);}
+function tC0(){const w=(+document.getElementById('weight').value||86);return goalTargets(w,DAY).tC;}
+function tF0(){const w=(+document.getElementById('weight').value||86);return goalTargets(w,DAY).tF;}
 
 // 预设按钮
 const pb=document.getElementById('presetBar');
