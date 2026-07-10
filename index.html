@@ -55,12 +55,20 @@
   .goal-toggle button.on{background:#fff;color:var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.12)}
   .goal-toggle button.on#btnCut{color:#e65100}
   .goal-card{background:linear-gradient(135deg,#fafbff,#f0f4ff)}
+  .bmr-block{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+  .bmr-head{font-size:13px;font-weight:700;color:var(--ink);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+  .bmr-hint{font-size:11px;color:var(--sub);font-weight:500}
+  .bmr-block .toggle.sm{margin-top:8px}
+  .bmr-block .toggle.sm button{padding:7px;font-size:13px}
+  .deficit{font-size:12px;margin-top:8px;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px 10px;line-height:1.6}
+  .deficit.ok{color:var(--accent2);border-color:#bfe3c8} .deficit.off{color:var(--warn);border-color:#f3c9c0}
+  .deficit b{font-weight:700}
 
   .slider-row{display:flex;align-items:center;gap:12px;margin-top:16px}
   .slider-row input[type=range]{flex:1;accent-color:var(--accent)}
   .slider-val{font-weight:700;color:var(--accent);min-width:62px;text-align:right;font-size:15px}
 
-  .targets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:4px}
+  .targets{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:4px}
   .tbox{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
   .tbox .v{font-size:19px;font-weight:700}
   .tbox .k{font-size:11px;color:var(--sub);margin-top:2px}
@@ -220,6 +228,32 @@
       <div class="field"><label>体重 (kg)</label><input id="weight" type="number" value="86"></div>
       <div class="field"><label>年龄 (岁，用于热量估算)</label><input id="age" type="number" value="36"></div>
     </div>
+    <div class="bmr-block">
+      <div class="bmr-head">🔥 基础代谢 &amp; 每日总消耗 <span class="bmr-hint" id="bmrAuto"></span></div>
+      <div class="grid">
+        <div class="field bmr-sex">
+          <label>性别（估算用）</label>
+          <div class="toggle sm">
+            <button id="btnMale" class="on" onclick="setSex('male')">男</button>
+            <button id="btnFemale" onclick="setSex('female')">女</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>基础代谢 BMR (kcal)</label>
+          <input id="bmr" type="number" value="0" title="自动按身高/体重/年龄/性别用 Mifflin-St Jeor 估算，可手动修改（如来自体测仪）">
+        </div>
+        <div class="field">
+          <label>活动量 → 总消耗</label>
+          <select id="act" onchange="setAct(this.value)" style="width:100%">
+            <option value="sed">久坐 1.2×</option>
+            <option value="light">轻度活动 1.375×</option>
+            <option value="mod" selected>中度活动 1.55×</option>
+            <option value="high">高强度 1.725×</option>
+            <option value="athlete">运动员 1.9×</option>
+          </select>
+        </div>
+      </div>
+    </div>
     <div class="slider-row">
       <label style="font-size:13px;color:var(--sub)">蛋白质目标</label>
       <input id="prot" type="range" min="1.2" max="2.5" step="0.1" value="1.8">
@@ -261,6 +295,7 @@
       <div class="tbox c"><div class="v" id="tC">—</div><div class="k">碳水 (g)</div></div>
       <div class="tbox f"><div class="v" id="tF">—</div><div class="k">脂肪 (g)</div></div>
       <div class="tbox"><div class="v" id="tK">—</div><div class="k">摄入热量 (kcal)</div></div>
+      <div class="tbox"><div class="v" id="tdee">—</div><div class="k">每日总消耗 (kcal)</div></div>
     </div>
   </div>
 
@@ -288,6 +323,7 @@
       <span>脂肪 <b id="lF">—</b></span>
     </div>
     <div class="delta" id="delta"></div>
+    <div class="deficit" id="deficit"></div>
     <div class="delta supp" id="suppNote"></div>
   </div>
 
@@ -520,6 +556,20 @@ const GOAL_CFG={
 };
 // 目标宏量：蛋白取用户滑块值，碳水/脂肪按目标配置（保证减脂期碳水收紧、蛋白不缩）
 function goalTargets(w,DAY,ppk,goal){const g=GOAL_CFG[goal||GOAL];ppk=ppk||g.ppk;return {tP:Math.round(w*ppk), tC:Math.round(w*(DAY==='train'?g.cTrain:g.cRest)), tF:Math.round(w*g.f)};}
+// 基础代谢 / 每日总消耗：BMR 用 Mifflin-St Jeor，TDEE = BMR × 活动系数
+let SEX='male', ACT='mod';
+let bmrAutoCache=null;   // 上一次自动估算值，用于判断用户是否手动改过 BMR
+const ACT_CFG={
+  sed:    {label:'久坐',    mult:1.2},
+  light:  {label:'轻度活动',mult:1.375},
+  mod:    {label:'中度活动',mult:1.55},
+  high:   {label:'高强度',  mult:1.725},
+  athlete:{label:'运动员',  mult:1.9}
+};
+function bmrOf(h,w,age,sex){const base=10*w+6.25*h-5*age; return Math.round(sex==='female'?base-161:base+5);}
+function tdeeOf(bmr,act){return Math.round(bmr*(ACT_CFG[act]||ACT_CFG.mod).mult);}
+function setSex(s){SEX=s;document.getElementById('btnMale').classList.toggle('on',s==='male');document.getElementById('btnFemale').classList.toggle('on',s==='female');render();}
+function setAct(a){ACT=a;render();}
 function setGoal(g){
   GOAL=g;
   document.getElementById('btnGain').classList.toggle('on',g==='gain');
@@ -577,7 +627,7 @@ function rq(v,u){
 // ---------- 日期 / 记录 / 云端 ----------
 function dateStr(d){const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+day;}
 function todayStr(){return dateStr(new Date());}
-function seedEntry(){return {h:178,w:86,age:36,ppk:1.8,DAY:'train',PRESET:'home',GOAL:'gain',swaps:{},macroQty:{whey:1,bar:0},microOn:{},logged:null};}
+function seedEntry(){return {h:178,w:86,age:36,ppk:1.8,sex:'male',act:'mod',bmr:0,DAY:'train',PRESET:'home',GOAL:'gain',swaps:{},macroQty:{whey:1,bar:0},microOn:{},logged:null};}
 
 function loadDay(date){
   selDate=date; navEnd=date;
@@ -594,6 +644,12 @@ function loadDay(date){
   macroQty=Object.assign({whey:0,bar:0},e.macroQty||{});
   microOn=JSON.parse(JSON.stringify(e.microOn||{}));
   logged=e.logged||null;
+  SEX=e.sex||'male'; ACT=e.act||'mod';
+  document.getElementById('btnMale').classList.toggle('on',SEX==='male');
+  document.getElementById('btnFemale').classList.toggle('on',SEX==='female');
+  document.getElementById('act').value=ACT;
+  document.getElementById('bmr').value=e.bmr||0;
+  bmrAutoCache=null;   // 载入新一天时清空缓存，避免用上一天的自动值覆盖本天手动值
   suppressRecord=true;
   try{ setPreset(PRESET); setDay(DAY); }catch(err){}
   suppressRecord=false;
@@ -605,6 +661,7 @@ function recordDay(){
     w:+document.getElementById('weight').value||86,
     age:+document.getElementById('age').value||36,
     ppk:+document.getElementById('prot').value,
+    sex:SEX, act:ACT, bmr:+document.getElementById('bmr').value||0,
     DAY,PRESET,GOAL,
     swaps:JSON.parse(JSON.stringify(swaps)),
     macroQty:JSON.parse(JSON.stringify(macroQty)),
@@ -773,6 +830,17 @@ function render(){
   document.getElementById('tF').textContent=tF;
   document.getElementById('tK').textContent=Math.round(tK);
 
+  // ---- 基础代谢 / 每日总消耗 ----
+  const autoBmr=bmrOf(h,w,age,SEX);
+  const bmrEl=document.getElementById('bmr');
+  const curBmr=+bmrEl.value;
+  if(bmrEl.value==='' || curBmr===0 || (bmrAutoCache!==null && curBmr===bmrAutoCache)){ bmrEl.value=autoBmr; }
+  bmrAutoCache=autoBmr;
+  const bmr=+bmrEl.value||autoBmr;
+  const tdee=tdeeOf(bmr,ACT);
+  document.getElementById('tdee').textContent=tdee;
+  document.getElementById('bmrAuto').textContent='估算≈'+autoBmr+' · 总消耗≈'+tdee+' kcal';
+
   const mealsEl=document.getElementById('meals');
   mealsEl.innerHTML='';
   let aP=0,aC=0,aF=0;
@@ -872,6 +940,19 @@ function render(){
   d.textContent='实际合计 '+totK+' kcal ｜ 与目标差：蛋白 '+(dP>=0?'+':'')+dP+'g，碳水 '+
     (dC>=0?'+':'')+dC+'g，脂肪 '+(dF>=0?'+':'')+dF+'g'+
     (d.className==='delta ok'?' ✓ 合理范围内':' ⚠ 偏差较大，可微调主食/蛋白份量');
+
+  // ---- 热量缺口（实际摄入 vs 每日总消耗 TDEE） ----
+  const planGap=tdee-Math.round(tK);
+  const realGap=tdee-totK;
+  const realSign=realGap>=0?'缺口':'盈余';
+  const planSign=planGap>=0?'缺口':'盈余';
+  const gapEl=document.getElementById('deficit');
+  const close=Math.abs(realGap-planGap)<=150;
+  gapEl.className='deficit '+(close?'ok':'off');
+  gapEl.innerHTML='总消耗 TDEE ≈ <b>'+tdee+'</b> kcal ｜ '+(GOAL==='cut'?'减脂':'增肌')+'计划'+planSign+
+    ' <b>'+Math.abs(planGap)+'</b> kcal ｜ 实际'+realSign+' <b>'+Math.abs(realGap)+'</b> kcal'+
+    (close?' ✓ 贴合计划':' ⚠ 与计划偏差较大');
+
   document.getElementById('suppNote').textContent='补剂贡献：蛋白 '+Math.round(sP)+'g · 碳水 '+Math.round(sC)+'g · 脂肪 '+Math.round(sF)+'g';
 
   document.getElementById('tips').innerHTML=PRESETS[PRESET].tips[DAY].map(t=>`<li>${t}</li>`).join('');
@@ -906,6 +987,13 @@ function importDay(){
     if(j.profile.w) document.getElementById('weight').value=j.profile.w;
     if(j.profile.age) document.getElementById('age').value=j.profile.age;
     if(j.profile.ppk) document.getElementById('prot').value=j.profile.ppk;
+    if(j.profile.sex&&(j.profile.sex==='male'||j.profile.sex==='female')){
+      SEX=j.profile.sex;
+      document.getElementById('btnMale').classList.toggle('on',SEX==='male');
+      document.getElementById('btnFemale').classList.toggle('on',SEX==='female');
+    }
+    if(j.profile.act&&ACT_CFG[j.profile.act]){ ACT=j.profile.act; document.getElementById('act').value=ACT; }
+    if(j.profile.bmr>0){ document.getElementById('bmr').value=j.profile.bmr; bmrAutoCache=null; }
     if(j.profile.DAY) DAY=j.profile.DAY;
     if(j.profile.PRESET&&PRESETS[j.profile.PRESET]) PRESET=j.profile.PRESET;
     if(j.profile.GOAL&&GOAL_CFG[j.profile.GOAL]){
@@ -964,7 +1052,7 @@ function exportDay(){
     });
   }
   const supps=(logged&&logged.macroQty)?logged.macroQty:macroQty;
-  const out={date:selDate, profile:{h:+document.getElementById('height').value,w:+document.getElementById('weight').value,age:+document.getElementById('age').value,ppk:+document.getElementById('prot').value,DAY,PRESET,GOAL}, meals, supps};
+  const out={date:selDate, profile:{h:+document.getElementById('height').value,w:+document.getElementById('weight').value,age:+document.getElementById('age').value,ppk:+document.getElementById('prot').value,sex:SEX,act:ACT,bmr:+document.getElementById('bmr').value||0,DAY,PRESET,GOAL}, meals, supps};
   box.value=JSON.stringify(out,null,1);
   const msg=document.getElementById('importMsg');
   msg.textContent='✓ 已导出到上方文本框，可复制备份';msg.style.color='var(--accent2)';
@@ -986,7 +1074,7 @@ Object.entries(PRESETS).forEach(([k,v])=>{
   b.dataset.p=k; b.textContent=v.label; b.onclick=()=>setPreset(k);
   pb.appendChild(b);
 });
-['height','weight','age','prot'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+['height','weight','age','prot','bmr'].forEach(id=>document.getElementById(id).addEventListener('input',render));
 
 // ---------- 启动：恢复本地日志 + 云端配置 ----------
 try{const L=JSON.parse(localStorage.getItem('diet_log')||'{}');if(L&&typeof L==='object')diet_log=L;}catch(e){}
