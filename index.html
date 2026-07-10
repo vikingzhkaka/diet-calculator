@@ -115,6 +115,10 @@
   .dsave{padding:7px 14px;border:1px solid var(--accent);background:var(--accent);border-radius:9px;font-size:13px;cursor:pointer;color:#fff;font-weight:600}
   .dsave:active{background:#1d4ed8}
   .dsave-state{font-size:12px;color:var(--accent2);font-weight:600;margin-left:2px}
+  .dsave.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+  .iobox{width:100%;height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:8px;resize:vertical;background:var(--bg);color:var(--txt)}
+  .mini{padding:3px 9px;font-size:12px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;cursor:pointer;font-weight:600}
+  .hint{font-size:12px;color:var(--sub);margin:0 0 8px;line-height:1.5}
   .dsync{margin-left:auto;font-size:12px;color:var(--sub);text-align:right}
   .dstrip{display:flex;gap:6px;margin-top:12px;overflow-x:auto;padding-bottom:4px}
   .dcell{flex:0 0 auto;width:42px;height:54px;border:1px solid var(--line);background:#fff;border-radius:10px;cursor:pointer;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
@@ -284,6 +288,22 @@
   <div class="card">
     <h2><span class="dot"></span>食物替换提示</h2>
     <ul class="tips" id="tips"></ul>
+  </div>
+
+  <div class="card collapsible collapsed" id="captureCard">
+    <h2 class="chead" onclick="toggleCard('captureCard')">📷 识图识别 / 数据导入导出 <span class="cval" id="captureMode"></span></h2>
+    <div class="cbody">
+      <p class="hint">把小票 / 餐盘照发到本对话，我识别后返回 JSON，粘贴到下框点「导入」即可自动载入。也可手动编辑后「导出」备份。</p>
+      <div id="loggedBanner" style="display:none;margin:6px 0;padding:8px 10px;background:#e8f5e9;border-radius:8px;font-size:13px;color:#1b5e20">
+        📷 当前为「识别日志」模式（来自导入）。<button class="mini" onclick="clearLogged()" style="margin-left:6px">清除识别，回到模板</button>
+      </div>
+      <textarea id="importBox" class="iobox" placeholder="在此粘贴 AI 识别返回的 JSON…"></textarea>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="dsave" onclick="importDay()">📥 导入 JSON</button>
+        <button class="dsave ghost" onclick="exportDay()">📤 导出今日 JSON</button>
+        <span id="importMsg" class="dsave-state"></span>
+      </div>
+    </div>
   </div>
 
   <div class="card" style="text-align:center;padding:18px">
@@ -483,6 +503,7 @@ let navEnd='';             // 日期条窗口末端
 let diet_log={};           // { 'YYYY-MM-DD': entry }
 let cloud={};              // { token, repo }
 let suppressRecord=false;  // loadDay 期间抑制自动记录
+let logged=null;           // 识别日志模式：{meals:[{name,time,items:[{key,qty}]}], macroQty}
 let syncTimer=null, lastSync=0;
 
 function setDay(d){DAY=d;
@@ -525,7 +546,7 @@ function rq(v,u){
 // ---------- 日期 / 记录 / 云端 ----------
 function dateStr(d){const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+day;}
 function todayStr(){return dateStr(new Date());}
-function seedEntry(){return {h:178,w:86,age:36,ppk:1.8,DAY:'train',PRESET:'home',swaps:{},macroQty:{whey:1,bar:0},microOn:{}};}
+function seedEntry(){return {h:178,w:86,age:36,ppk:1.8,DAY:'train',PRESET:'home',swaps:{},macroQty:{whey:1,bar:0},microOn:{},logged:null};}
 
 function loadDay(date){
   selDate=date; navEnd=date;
@@ -538,6 +559,7 @@ function loadDay(date){
   swaps=JSON.parse(JSON.stringify(e.swaps||{}));
   macroQty=Object.assign({whey:0,bar:0},e.macroQty||{});
   microOn=JSON.parse(JSON.stringify(e.microOn||{}));
+  logged=e.logged||null;
   suppressRecord=true;
   try{ setPreset(PRESET); setDay(DAY); }catch(err){}
   suppressRecord=false;
@@ -553,6 +575,7 @@ function recordDay(){
     swaps:JSON.parse(JSON.stringify(swaps)),
     macroQty:JSON.parse(JSON.stringify(macroQty)),
     microOn:JSON.parse(JSON.stringify(microOn)),
+    logged: logged||null,
     savedAt:Date.now()
   };
   diet_log[selDate]=e;
@@ -658,6 +681,13 @@ function calcEntry(e){
   const w=e.w||86, ppk=e.ppk||1.8, DAY=e.DAY||'train', PRESET=e.PRESET||'home';
   const swaps=e.swaps||{}, macroQty=e.macroQty||{};
   const tP=Math.round(w*ppk), tC=Math.round(w*(DAY==='train'?4.5:2.8)), tF=Math.round(w*0.7);
+  // 识别日志模式：直接按导入的实际食物/克数计算（不走按目标缩放）
+  if(e.logged && e.logged.meals && e.logged.meals.length){
+    let laP=0,laC=0,laF=0;
+    e.logged.meals.forEach(m=>m.items.forEach(it=>{const f=FOODS[it.key]; if(!f)return; laP+=f.p*it.qty; laC+=f.c*it.qty; laF+=f.f*it.qty;}));
+    Object.entries(e.logged.macroQty||{}).forEach(([k,q])=>{if(q>0){const s=MACRO_SUPP[k];if(!s)return;laP+=s.p*q;laC+=s.c*q;laF+=s.f*q;}});
+    return {tP,tC,tF,aP:Math.round(laP),aC:Math.round(laC),aF:Math.round(laF)};
+  }
   const tpl=PRESETS[PRESET][DAY];
   let bP=0,bC=0,bF=0;
   tpl.forEach((m,mi)=>m.items.forEach(([k,q],ii)=>{let key=swaps[PRESET+'|'+DAY+'|'+mi+'|'+ii]||k; if(!FOODS[key])key=k; const f=FOODS[key]; bP+=f.p*q;bC+=f.c*q;bF+=f.f*q;}));
@@ -711,56 +741,84 @@ function render(){
   document.getElementById('tF').textContent=tF;
   document.getElementById('tK').textContent=Math.round(tK);
 
-  const tpl=PRESETS[PRESET][DAY];
-  // 构建有效食物列表（应用用户替换）
-  let eff=[];
-  tpl.forEach((m,mi)=>m.items.forEach(([k,q],ii)=>{
-    const id=`${PRESET}|${DAY}|${mi}|${ii}`;
-    let key=swaps[id]||k;
-    if(!FOODS[key]) key=k;
-    eff.push({id,key,qty:q});
-  }));
-  // 基准宏量（用有效食物的基础份量）
-  let bP=0,bC=0,bF=0;
-  eff.forEach(it=>{const f=FOODS[it.key];bP+=f.p*it.qty;bC+=f.c*it.qty;bF+=f.f*it.qty;});
-  const fP=tP/bP, fC=tC/bC, fF=tF/bF;
-
-  let aP=0,aC=0,aF=0;
   const mealsEl=document.getElementById('meals');
   mealsEl.innerHTML='';
-  tpl.forEach((m,mi)=>{
-    let mp=0,mc=0,mf=0;
-    const foodsHtml=m.items.map(([defKey,q],ii)=>{
+  let aP=0,aC=0,aF=0;
+
+  if(logged && logged.meals && logged.meals.length){
+    // ---- 识别日志模式：直接显示导入的实际食物与克数 ----
+    document.getElementById('loggedBanner').style.display='block';
+    document.getElementById('captureMode').textContent='· 识别日志';
+    logged.meals.forEach(m=>{
+      let mp=0,mc=0,mf=0;
+      const foodsHtml=m.items.map(it=>{
+        const f=FOODS[it.key]; if(!f) return '';
+        const realQ=it.qty;
+        const cp=f.p*realQ, cc=f.c*realQ, cf=f.f*realQ;
+        mp+=cp;mc+=cc;mf+=cf; aP+=cp;aC+=cc;aF+=cf;
+        const qtyTxt=f.unit==='×20g'?(realQ+'×20g'):(realQ+' '+f.unit);
+        return `<span class="food"><b>${f.name}</b> <span class="q">${qtyTxt}</span>`+
+               `<span class="mac">蛋${Math.round(cp)}/碳${Math.round(cc)}/脂${Math.round(cf)}</span></span>`;
+      }).join('');
+      const card=document.createElement('div');
+      card.className='meal';
+      card.innerHTML=`<div class="mhead"><div><span class="mname">${m.name}</span> `+
+        `<span class="mtime">${m.time||''}</span></div>`+
+        `<div class="mmac">蛋白${Math.round(mp)} · 碳水${Math.round(mc)} · 脂肪${Math.round(mf)}</div></div>`+
+        `<div class="foods">${foodsHtml}</div>`;
+      mealsEl.appendChild(card);
+    });
+  } else {
+    // ---- 模板模式（原有逻辑） ----
+    document.getElementById('loggedBanner').style.display='none';
+    document.getElementById('captureMode').textContent='';
+    const tpl=PRESETS[PRESET][DAY];
+    // 构建有效食物列表（应用用户替换）
+    let eff=[];
+    tpl.forEach((m,mi)=>m.items.forEach(([k,q],ii)=>{
       const id=`${PRESET}|${DAY}|${mi}|${ii}`;
-      let key=swaps[id]||defKey;
-      if(!FOODS[key]) key=defKey;
-      const f=FOODS[key];
-      const factor=f.role==='prot'?fP:f.role==='carb'?fC:f.role==='fat'?fF:1;
-      const realQ=f.role==='veg'?q:(f.unit==='g'?rg(q*factor):q*factor);
-      const dispQ=f.role==='veg'?q:(f.unit==='g'?rg(q*factor):rq(q*factor,f.unit));
-      const cp=f.p*realQ, cc=f.c*realQ, cf=f.f*realQ;
-      mp+=cp;mc+=cc;mf+=cf;aP+=cp;aC+=cc;aF+=cf;
-      const qtyTxt=f.unit==='×20g'?(dispQ+'×20g'):(dispQ+' '+f.unit);
-      // 同类替换下拉
-      const opts=Object.entries(FOODS).filter(([_,v])=>v.swap===f.swap);
-      let nameHtml;
-      if(opts.length>1){
-        const sel=opts.map(([kk,vv])=>`<option value="${kk}"${kk===key?' selected':''}>${vv.name}</option>`).join('');
-        nameHtml=`<select onchange="swap('${id}',this.value)">${sel}</select>`;
-      }else{
-        nameHtml=`<b>${f.name}</b>`;
-      }
-      return `<span class="food">${nameHtml} <span class="q">${qtyTxt}</span>`+
-             `<span class="mac">蛋${Math.round(cp)}/碳${Math.round(cc)}/脂${Math.round(cf)}</span></span>`;
-    }).join('');
-    const card=document.createElement('div');
-    card.className='meal';
-    card.innerHTML=`<div class="mhead"><div><span class="mname">${m.name}</span> `+
-      `<span class="mtime">${m.time}</span></div>`+
-      `<div class="mmac">蛋白${Math.round(mp)} · 碳水${Math.round(mc)} · 脂肪${Math.round(mf)}</div></div>`+
-      `<div class="foods">${foodsHtml}</div>`;
-    mealsEl.appendChild(card);
-  });
+      let key=swaps[id]||k;
+      if(!FOODS[key]) key=k;
+      eff.push({id,key,qty:q});
+    }));
+    // 基准宏量（用有效食物的基础份量）
+    let bP=0,bC=0,bF=0;
+    eff.forEach(it=>{const f=FOODS[it.key];bP+=f.p*it.qty;bC+=f.c*it.qty;bF+=f.f*it.qty;});
+    const fP=tP/bP, fC=tC/bC, fF=tF/bF;
+    tpl.forEach((m,mi)=>{
+      let mp=0,mc=0,mf=0;
+      const foodsHtml=m.items.map(([defKey,q],ii)=>{
+        const id=`${PRESET}|${DAY}|${mi}|${ii}`;
+        let key=swaps[id]||defKey;
+        if(!FOODS[key]) key=defKey;
+        const f=FOODS[key];
+        const factor=f.role==='prot'?fP:f.role==='carb'?fC:f.role==='fat'?fF:1;
+        const realQ=f.role==='veg'?q:(f.unit==='g'?rg(q*factor):q*factor);
+        const dispQ=f.role==='veg'?q:(f.unit==='g'?rg(q*factor):rq(q*factor,f.unit));
+        const cp=f.p*realQ, cc=f.c*realQ, cf=f.f*realQ;
+        mp+=cp;mc+=cc;mf+=cf;aP+=cp;aC+=cc;aF+=cf;
+        const qtyTxt=f.unit==='×20g'?(dispQ+'×20g'):(dispQ+' '+f.unit);
+        // 同类替换下拉
+        const opts=Object.entries(FOODS).filter(([_,v])=>v.swap===f.swap);
+        let nameHtml;
+        if(opts.length>1){
+          const sel=opts.map(([kk,vv])=>`<option value="${kk}"${kk===key?' selected':''}>${vv.name}</option>`).join('');
+          nameHtml=`<select onchange="swap('${id}',this.value)">${sel}</select>`;
+        }else{
+          nameHtml=`<b>${f.name}</b>`;
+        }
+        return `<span class="food">${nameHtml} <span class="q">${qtyTxt}</span>`+
+               `<span class="mac">蛋${Math.round(cp)}/碳${Math.round(cc)}/脂${Math.round(cf)}</span></span>`;
+      }).join('');
+      const card=document.createElement('div');
+      card.className='meal';
+      card.innerHTML=`<div class="mhead"><div><span class="mname">${m.name}</span> `+
+        `<span class="mtime">${m.time}</span></div>`+
+        `<div class="mmac">蛋白${Math.round(mp)} · 碳水${Math.round(mc)} · 脂肪${Math.round(mf)}</div></div>`+
+        `<div class="foods">${foodsHtml}</div>`;
+      mealsEl.appendChild(card);
+    });
+  }
 
   let sP=0,sC=0,sF=0;
   Object.entries(macroQty).forEach(([k,q])=>{if(q>0){const s=MACRO_SUPP[k];if(!s)return;sP+=s.p*q;sC+=s.c*q;sF+=s.f*q;}});
@@ -789,6 +847,88 @@ function render(){
   try{ if(!suppressRecord) recordDay(); }catch(e){}
  }catch(e){console.error('render error',e);}
 }
+
+// ---------- 识图导入 / 导出 ----------
+function resolveFood(it){
+  let key=it.key;
+  if(!key && it.name){
+    const hit=Object.entries(FOODS).find(([k,v])=>v.name===it.name || v.name.includes(it.name) || (''+it.name).includes(v.name));
+    key=hit?hit[0]:null;
+  }
+  if(!key || !FOODS[key]) return null;
+  let qty=+it.qty; if(!(qty>0)) return null;
+  return {key,qty};
+}
+function importDay(){
+  const msg=document.getElementById('importMsg');
+  const raw=document.getElementById('importBox').value.trim();
+  if(!raw){msg.textContent='请先粘贴 JSON';msg.style.color='#c62828';return;}
+  let j; try{j=JSON.parse(raw);}catch(e){msg.textContent='JSON 解析失败：'+e.message;msg.style.color='#c62828';return;}
+  const meals=(j.meals||[]).map(m=>({
+    name:m.name||'餐', time:m.time||'',
+    items:(m.items||[]).map(resolveFood).filter(Boolean)
+  })).filter(m=>m.items.length);
+  if(!meals.length){msg.textContent='没有可识别的食物（请检查 key/name 与 qty）';msg.style.color='#c62828';return;}
+  if(j.profile){
+    if(j.profile.h) document.getElementById('height').value=j.profile.h;
+    if(j.profile.w) document.getElementById('weight').value=j.profile.w;
+    if(j.profile.age) document.getElementById('age').value=j.profile.age;
+    if(j.profile.ppk) document.getElementById('prot').value=j.profile.ppk;
+    if(j.profile.DAY) DAY=j.profile.DAY;
+    if(j.profile.PRESET&&PRESETS[j.profile.PRESET]) PRESET=j.profile.PRESET;
+  }
+  const targetDate=j.date||selDate;
+  logged={meals, macroQty:Object.assign({whey:0,bar:0}, j.supps||{})};
+  macroQty=Object.assign({whey:0,bar:0}, j.supps||macroQty);
+  selDate=targetDate; navEnd=targetDate;
+  suppressRecord=true;
+  try{ setPreset(PRESET); setDay(DAY); }catch(e){}
+  suppressRecord=false;
+  recordDay(); render();
+  renderDateStrip(); renderTrend();
+  msg.textContent='✓ 已导入 '+meals.length+' 餐 · '+targetDate;msg.style.color='var(--accent2)';
+}
+function exportDay(){
+  const box=document.getElementById('importBox');
+  const meals=[];
+  if(logged && logged.meals && logged.meals.length){
+    logged.meals.forEach(m=>meals.push({name:m.name,time:m.time,items:m.items.map(it=>({key:it.key,qty:it.qty}))}));
+  } else {
+    const tpl=PRESETS[PRESET][DAY];
+    let eff=[];
+    tpl.forEach((m,mi)=>m.items.forEach(([k,q],ii)=>{
+      const id=`${PRESET}|${DAY}|${mi}|${ii}`;
+      let key=swaps[id]||k; if(!FOODS[key])key=k; eff.push({id,key,qty:q});
+    }));
+    let bP=0,bC=0,bF=0; eff.forEach(it=>{const f=FOODS[it.key];bP+=f.p*it.qty;bC+=f.c*it.qty;bF+=f.f*it.qty;});
+    const fP=tP0()/bP, fC=tC0()/bC, fF=tF0()/bF;
+    tpl.forEach((m,mi)=>{
+      const items=m.items.map(([defKey,q],ii)=>{
+        const id=`${PRESET}|${DAY}|${mi}|${ii}`;
+        let key=swaps[id]||defKey; if(!FOODS[key])key=defKey;
+        const f=FOODS[key];
+        const factor=f.role==='prot'?fP:f.role==='carb'?fC:f.role==='fat'?fF:1;
+        const realQ=f.role==='veg'?q:(f.unit==='g'?rg(q*factor):q*factor);
+        return {key,qty:Math.round(realQ*10)/10};
+      });
+      meals.push({name:m.name,time:m.time,items});
+    });
+  }
+  const supps=(logged&&logged.macroQty)?logged.macroQty:macroQty;
+  const out={date:selDate, profile:{h:+document.getElementById('height').value,w:+document.getElementById('weight').value,age:+document.getElementById('age').value,ppk:+document.getElementById('prot').value,DAY,PRESET}, meals, supps};
+  box.value=JSON.stringify(out,null,1);
+  const msg=document.getElementById('importMsg');
+  msg.textContent='✓ 已导出到上方文本框，可复制备份';msg.style.color='var(--accent2)';
+}
+function clearLogged(){
+  logged=null;
+  document.getElementById('loggedBanner').style.display='none';
+  document.getElementById('captureMode').textContent='';
+  render(); renderDateStrip(); renderTrend();
+}
+function tP0(){return Math.round((+document.getElementById('weight').value||86)*(+document.getElementById('prot').value||1.8));}
+function tC0(){return Math.round((+document.getElementById('weight').value||86)*((DAY==='train')?4.5:2.8));}
+function tF0(){return Math.round((+document.getElementById('weight').value||86)*0.7);}
 
 // 预设按钮
 const pb=document.getElementById('presetBar');
