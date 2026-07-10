@@ -878,7 +878,18 @@ function importDay(){
     if(j.profile.PRESET&&PRESETS[j.profile.PRESET]) PRESET=j.profile.PRESET;
   }
   const targetDate=j.date||selDate;
-  logged={meals, macroQty:Object.assign({whey:0,bar:0}, j.supps||{})};
+  // 合并模式：已登录录状态下新导入的餐追加（同餐名则替换该餐 items），不覆盖已有餐
+  const incomingSupps=Object.assign({whey:0,bar:0}, j.supps||{});
+  if(logged && logged.meals && logged.meals.length){
+    for(const nm of meals){
+      const exIdx=logged.meals.findIndex(em=>em.name===nm.name);
+      if(exIdx>=0){ logged.meals[exIdx].items=nm.items; }   // 同名餐：替换食物
+      else{ logged.meals.push(nm); }                        // 新餐：追加
+    }
+    Object.assign(logged.macroQty, incomingSupps);           // 补剂合并
+  }else{
+    logged={meals, macroQty:incomingSupps};                  // 首次导入或无已存数据
+  }
   macroQty=Object.assign({whey:0,bar:0}, j.supps||macroQty);
   selDate=targetDate; navEnd=targetDate;
   suppressRecord=true;
